@@ -24,7 +24,7 @@ export default function App() {
       <InstallButton />
 
       <Routes>
-        <Route path="/" element={<Navigate to="/register" replace />} />
+        <Route path="/" element={<Navigate to="/quiz" replace />} />
 
         <Route
           path="/register"

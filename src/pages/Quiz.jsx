@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import bg from "../assets/register-bg.png";
+import { apiFetch } from "../lib/api";
 import Leaderboard from "./Leaderboard";
 
 function pad2(n) {
@@ -29,13 +30,22 @@ function PreCountdown({ seconds }) {
 }
 
 // ✅ (مهم) لازم Wrapper يكون خارج Quiz() باش مايصراش remount كل render
-function Wrapper({ children }) {
+function Wrapper({ children, onLogout }) {
   return (
     <div
       className="relative min-h-screen w-full bg-center bg-cover flex items-center justify-center p-4"
       style={{ backgroundImage: `url(${bg})` }}
       dir="rtl"
     >
+      {/* زر تسجيل الخروج */}
+      <button
+        onClick={onLogout}
+        className="absolute top-6 left-6 rounded-xl border-2 border-white/80 bg-white/30 px-5 py-2 text-base font-semibold text-gray-900 backdrop-blur-sm shadow hover:bg-white/40"
+        type="button"
+      >
+        تسجيل الخروج
+      </button>
+
       {children}
     </div>
   );
@@ -72,6 +82,38 @@ export default function Quiz() {
   // لمنع اختيار أكثر من مرة لنفس السؤال
   const lockedQuestionsRef = useRef(new Set());
 
+  // ✅ تسجيل الخروج
+
+  const onLogout = useCallback(async () => {
+    const ok = window.confirm("هل تريد تسجيل الخروج؟");
+    if (!ok) return;
+
+    const sessionToken = localStorage.getItem("session_token");
+
+    // 1) احذف session من قاعدة البيانات عبر backend
+    try {
+      if (sessionToken) {
+        await apiFetch("/api/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_token: sessionToken }),
+        });
+      }
+    } catch (e) {
+      // حتى لو فشل الطلب، نكمل logout محليًا
+      console.warn("logout api failed:", e);
+    }
+
+    // 2) امسح localStorage
+    localStorage.removeItem("session_token");
+    localStorage.removeItem("quiz_token");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("username");
+
+    setShowBoard(false);
+    navigate("/login", { replace: true });
+  }, [navigate]);
   // ✅ تحقق من وجود session_token
   useEffect(() => {
     const sessionToken = localStorage.getItem("session_token");
@@ -380,7 +422,7 @@ export default function Quiz() {
 
   if (view.mode === "none") {
     return (
-      <Wrapper>
+      <Wrapper onLogout={onLogout}>
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center">
           <h1 className="text-2xl font-bold mb-2">لا يوجد كويز قادم الآن</h1>
           <p className="text-slate-600">عند إضافة كويز وتحديده كـ Active سيظهر هنا.</p>
@@ -391,7 +433,7 @@ export default function Quiz() {
 
   if (view.mode === "scheduled" && preCountdown.show) {
     return (
-      <Wrapper>
+      <Wrapper onLogout={onLogout}>
         <PreCountdown seconds={preCountdown.seconds} />
       </Wrapper>
     );
@@ -400,7 +442,7 @@ export default function Quiz() {
   if (view.mode === "scheduled") {
     const { h, m, s } = msToParts(view.diffMs);
     return (
-      <Wrapper>
+      <Wrapper onLogout={onLogout}>
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center">
           <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
           <p className="text-slate-600 mb-5">سيبدأ تلقائيًا عند الوصول للوقت المحدد.</p>
@@ -423,7 +465,7 @@ export default function Quiz() {
 
   if (qLoading) {
     return (
-      <Wrapper>
+      <Wrapper onLogout={onLogout}>
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center">
           جاري تحميل أسئلة الكويز...
         </div>
@@ -433,7 +475,7 @@ export default function Quiz() {
 
   if (!questions.length) {
     return (
-      <Wrapper>
+      <Wrapper onLogout={onLogout}>
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center">
           <h1 className="text-2xl font-bold mb-2">الكويز شغال ✅</h1>
           <p className="text-slate-600">لكن لا توجد أسئلة مرتبطة بهذا الكويز.</p>
@@ -447,7 +489,7 @@ export default function Quiz() {
 
   if (view.mode === "live" && preCountdown.show) {
     return (
-      <Wrapper>
+      <Wrapper onLogout={onLogout}>
         <PreCountdown seconds={preCountdown.seconds} />
       </Wrapper>
     );
@@ -458,7 +500,7 @@ export default function Quiz() {
 
   if (finished) {
     return (
-      <Wrapper>
+      <Wrapper onLogout={onLogout}>
         {showBoard ? (
           <Leaderboard quizId={view.quizId} onClose={() => setShowBoard(false)} />
         ) : null}
@@ -472,6 +514,7 @@ export default function Quiz() {
           <button
             onClick={() => setShowBoard(true)}
             className="mt-4 w-full h-12 rounded-2xl bg-black/90 text-white shadow"
+            type="button"
           >
             عرض الترتيب النهائي 🏆
           </button>
@@ -486,7 +529,7 @@ export default function Quiz() {
   const locked = lockedQuestionsRef.current.has(q.id);
 
   return (
-    <Wrapper>
+    <Wrapper onLogout={onLogout}>
       <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow">
         <div className="flex items-center justify-between mb-4">
           <div className="text-sm text-slate-700">
@@ -529,6 +572,7 @@ export default function Quiz() {
                 onClick={() => pickChoice(q, c)}
                 className={`h-14 rounded-2xl border bg-white px-4 text-right shadow-sm transition ${extra}`}
                 disabled={locked}
+                type="button"
               >
                 <span className="font-bold ml-2">{c.label}.</span>
                 {c.choice_text}
