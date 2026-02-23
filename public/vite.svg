@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071A2B"></stop>
+      <stop offset="1" stop-color="#0B3A5A"></stop>
+    </linearGradient>
+
+    <linearGradient id="sea" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#19B7D8"></stop>
+      <stop offset="1" stop-color="#3CE6B1"></stop>
+    </linearGradient>
+
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#EAF6FF"></stop>
+      <stop offset="1" stop-color="#CFEAFF"></stop>
+    </linearGradient>
+
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.35"></feDropShadow>
+    </filter>
+
+    <filter id="textShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.45"></feDropShadow>
+    </filter>
+  </defs>
+
+  <!-- Rounded background -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bg)"></rect>
+
+  <!-- Subtle stars -->
+  <g opacity="0.25">
+    <circle cx="150" cy="140" r="3" fill="#fff"></circle>
+    <circle cx="210" cy="110" r="2.5" fill="#fff"></circle>
+    <circle cx="350" cy="130" r="2.5" fill="#fff"></circle>
+    <circle cx="390" cy="170" r="2" fill="#fff"></circle>
+    <circle cx="120" cy="210" r="2" fill="#fff"></circle>
+  </g>
+
+  <!-- Badge circle -->
+  <circle cx="256" cy="256" r="168" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.18)" stroke-width="4"></circle>
+
+  <!-- Title -->
+  <g filter="url(#textShadow)">
+    <text x="256" y="156" text-anchor="middle" font-size="40" font-weight="800" font-family="system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif" fill="url(#title)" letter-spacing="0.5">
+      ChuluQuiz
+    </text>
+    <!-- small underline -->
+    <path d="M168 170 C205 182, 307 182, 344 170" fill="none" stroke="rgba(234,246,255,0.55)" stroke-width="5" stroke-linecap="round"></path>
+  </g>
+
+  <!-- Waves -->
+  <path d="M120 330
+           C150 315, 180 315, 210 330
+           C240 345, 272 345, 304 330
+           C336 315, 366 315, 396 330
+           L396 360
+           C366 345, 336 345, 304 360
+           C272 375, 240 375, 210 360
+           C180 345, 150 345, 120 360
+           Z" fill="url(#sea)" opacity="0.9" filter="url(#softShadow)"></path>
+
+  <!-- Anchor (center) -->
+  <g transform="translate(256 270)" filter="url(#softShadow)">
+    <!-- ring -->
+    <circle cx="0" cy="-86" r="18" fill="none" stroke="#EAF6FF" stroke-width="10"></circle>
+    <!-- stem -->
+    <path d="M0 -68 L0 40" stroke="#EAF6FF" stroke-width="14" stroke-linecap="round"></path>
+    <!-- cross bar -->
+    <path d="M-44 -18 L44 -18" stroke="#EAF6FF" stroke-width="14" stroke-linecap="round"></path>
+    <!-- inner curve -->
+    <path d="M-70 36
+             C-46 70, -18 88, 0 90
+             C18 88, 46 70, 70 36" fill="none" stroke="#EAF6FF" stroke-width="14" stroke-linecap="round"></path>
+    <!-- flukes -->
+    <path d="M-70 36
+             C-92 32, -102 12, -98 -10" fill="none" stroke="#EAF6FF" stroke-width="14" stroke-linecap="round"></path>
+    <path d="M70 36
+             C92 32, 102 12, 98 -10" fill="none" stroke="#EAF6FF" stroke-width="14" stroke-linecap="round"></path>
+    <!-- tip -->
+    <circle cx="0" cy="52" r="7" fill="#EAF6FF"></circle>
+  </g>
+
+  <!-- Dolphin (top-left arc) -->
+  <g transform="translate(170 200) rotate(-18)" filter="url(#softShadow)">
+    <!-- body -->
+    <path d="M120 40
+             C92 10, 58 6, 34 18
+             C12 28, 2 52, 18 70
+             C36 92, 78 92, 104 72
+             C118 62, 132 62, 144 72
+             C130 54, 132 46, 120 40 Z" fill="#EAF6FF" opacity="0.95"></path>
+    <!-- fin -->
+    <path d="M66 44
+             C58 34, 46 32, 38 38
+             C48 50, 54 58, 56 68
+             C62 58, 70 52, 66 44 Z" fill="#CFEAFF"></path>
+    <!-- tail -->
+    <path d="M8 60
+             C-6 66, -18 78, -14 90
+             C-2 84, 10 86, 20 94
+             C22 80, 18 66, 8 60 Z" fill="#EAF6FF"></path>
+    <!-- eye -->
+    <circle cx="92" cy="46" r="3.2" fill="#0B3A5A"></circle>
+  </g>
+
+  <!-- Small "Q" mark -->
+  <g opacity="0.9">
+    <circle cx="356" cy="368" r="26" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.22)" stroke-width="2"></circle>
+    <path d="M356 353
+             a13 13 0 1 0 0 26
+             a13 13 0 1 0 0 -26" fill="none" stroke="#EAF6FF" stroke-width="6" stroke-linecap="round"></path>
+    <path d="M366 381 L376 391" stroke="#EAF6FF" stroke-width="6" stroke-linecap="round"></path>
+  </g>
+</svg>
