@@ -33,25 +33,50 @@ function PreCountdown({ seconds }) {
 function Wrapper({ children, onLogout }) {
   return (
     <div
-      className="relative min-h-screen w-full bg-center bg-cover flex items-center justify-center p-4"
+      className="min-h-screen w-full bg-center bg-cover flex flex-col"
       style={{ backgroundImage: `url(${bg})` }}
       dir="rtl"
     >
-      {/* ✅ Partners Header */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 px-3">
-        <PartnersHeader />
+      {/* ===== Header ثابت ومتجاوب ===== */}
+      <div className="w-full flex items-center justify-between px-4 sm:px-8 pt-6">
+
+        {/* زر الخروج */}
+        <button
+          onClick={onLogout}
+          className="
+            rounded-xl
+            border-2
+            border-white/80
+            bg-white/30
+            px-4
+            py-2
+            text-sm
+            sm:text-base
+            font-semibold
+            text-gray-900
+            backdrop-blur-sm
+            shadow
+            hover:bg-white/40
+            transition
+          "
+          type="button"
+        >
+          تسجيل الخروج
+        </button>
+
+        {/* Partners Header */}
+        <div className="flex-1 flex justify-center">
+          <PartnersHeader />
+        </div>
+
+        {/* spacer يمين لموازنة الزر */}
+        <div className="w-[100px] hidden sm:block"></div>
       </div>
 
-      {/* زر تسجيل الخروج */}
-      <button
-        onClick={onLogout}
-        className="absolute top-6 left-6 rounded-xl border-2 border-white/80 bg-white/30 px-5 py-2 text-base font-semibold text-gray-900 backdrop-blur-sm shadow hover:bg-white/40"
-        type="button"
-      >
-        تسجيل الخروج
-      </button>
-
-      {children}
+      {/* ===== محتوى الصفحة ===== */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        {children}
+      </div>
     </div>
   );
 }
