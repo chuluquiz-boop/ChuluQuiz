@@ -52,6 +52,10 @@ function Wrapper({ children, onLogout }) {
 }
 
 export default function Quiz() {
+  const [username, setUsername] = useState("");
+  useEffect(() => {
+    setUsername(localStorage.getItem("username") || "");
+  }, []);
   const navigate = useNavigate();
 
   const [showBoard, setShowBoard] = useState(false);
@@ -83,7 +87,6 @@ export default function Quiz() {
   const lockedQuestionsRef = useRef(new Set());
 
   // ✅ تسجيل الخروج
-
   const onLogout = useCallback(async () => {
     const ok = window.confirm("هل تريد تسجيل الخروج؟");
     if (!ok) return;
@@ -100,7 +103,6 @@ export default function Quiz() {
         });
       }
     } catch (e) {
-      // حتى لو فشل الطلب، نكمل logout محليًا
       console.warn("logout api failed:", e);
     }
 
@@ -114,6 +116,7 @@ export default function Quiz() {
     setShowBoard(false);
     navigate("/login", { replace: true });
   }, [navigate]);
+
   // ✅ تحقق من وجود session_token
   useEffect(() => {
     const sessionToken = localStorage.getItem("session_token");
@@ -224,20 +227,74 @@ export default function Quiz() {
     };
   }, []);
 
-  // 2) عند الدخول Live: اجلب الأسئلة + إعدادات المؤقت
+  // ✅ (جديد) استرجاع إجابات اللاعب من Supabase بعد تحميل الأسئلة
+  const restoreProgressFromDb = useCallback(async (quizId) => {
+    try {
+      const userIdRaw = localStorage.getItem("user_id");
+      const userId = Number(userIdRaw);
+
+      if (!quizId) return;
+      if (!userIdRaw || Number.isNaN(userId)) return;
+
+      // 1) answers
+      const { data: answers, error: aErr } = await supabase
+        .from("quiz_answers")
+        .select("question_id, choice_id, is_correct, answered_at")
+        .eq("quiz_id", quizId)
+        .eq("user_id", userId)
+        .order("answered_at", { ascending: true });
+
+      if (aErr) {
+        console.warn("restore answers error:", aErr);
+        return;
+      }
+
+      const pickedMap = {};
+      const resultMap = {};
+      const lockedSet = new Set();
+
+      for (const a of answers || []) {
+        if (!a?.question_id) continue;
+        pickedMap[a.question_id] = a.choice_id ?? null;
+        resultMap[a.question_id] = a.is_correct ? "correct" : "wrong";
+        lockedSet.add(a.question_id);
+      }
+
+      setPickedByQuestion(pickedMap);
+      setResultByQuestion(resultMap);
+      lockedQuestionsRef.current = lockedSet;
+
+      // 2) score (اختياري)
+      const { data: scoreRow, error: sErr } = await supabase
+        .from("quiz_scores")
+        .select("score")
+        .eq("quiz_id", quizId)
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!sErr && scoreRow?.score != null) {
+        setServerScore(scoreRow.score);
+      }
+    } catch (e) {
+      console.warn("restoreProgressFromDb failed:", e);
+    }
+  }, []);
+
+  // 2) عند الدخول Live: اجلب الأسئلة + إعدادات المؤقت + ✅ استرجاع التقدم
   useEffect(() => {
     let mounted = true;
 
     async function loadQuestionsAndSettings(quizId) {
       setQLoading(true);
 
+      // reset local state (ثم نرجّع من DB بعد قليل)
       setQuestions([]);
       setPickedByQuestion({});
       setResultByQuestion({});
       lockedQuestionsRef.current = new Set();
       setCurrentIdx(0);
       setServerScore(null);
-      setShowBoard(false); // ✅ حتى لا يبقى مفتوح من كويز سابق
+      setShowBoard(false);
 
       // settings
       const { data: settings } = await supabase
@@ -287,6 +344,11 @@ export default function Quiz() {
       }
 
       setQuestions(sorted);
+
+      // ✅ استرجاع الإجابات/القفل/النتيجة بعد ما الأسئلة جاهزة
+      // (مهم باش refresh يخلّي الاختيار ظاهر ومغلق)
+      await restoreProgressFromDb(quizId);
+
       setQLoading(false);
     }
 
@@ -297,7 +359,7 @@ export default function Quiz() {
     return () => {
       mounted = false;
     };
-  }, [view.mode, view.quizId]);
+  }, [view.mode, view.quizId, restoreProgressFromDb]);
 
   // ✅ حساب pre-countdown (10 ثواني قبل starts_at)
   const serverNowMs = Date.now() + serverOffsetMs;
@@ -338,7 +400,7 @@ export default function Quiz() {
       const elapsedSec = Math.floor(elapsedMs / 1000);
       const idx = Math.floor(elapsedSec / secondsPerQuestion);
 
-      // ✅ (مهم) كي يكمل الكويز حبّس التحديثات نهائياً
+      // ✅ كي يكمل الكويز حبّس التحديثات نهائياً
       if (idx >= total) {
         setCurrentIdx(total);
         setTimeLeft(0);
@@ -387,6 +449,8 @@ export default function Quiz() {
     if (!canPick(question.id)) return;
 
     lockedQuestionsRef.current.add(question.id);
+
+    // ✅ مهم: خلي الاختيار يظهر مباشرة
     setPickedByQuestion((prev) => ({ ...prev, [question.id]: choice.id }));
 
     const { data, error } = await supabase.rpc("submit_answer_token", {
@@ -399,6 +463,14 @@ export default function Quiz() {
     if (error) {
       console.error("submit_answer_token error:", error);
       alert(error.message || "تعذر حفظ الإجابة");
+
+      // ✅ (تحسين) لو فشل الحفظ، رجّع القفل والاختيار محلياً
+      lockedQuestionsRef.current.delete(question.id);
+      setPickedByQuestion((prev) => {
+        const copy = { ...prev };
+        delete copy[question.id];
+        return copy;
+      });
       return;
     }
 
@@ -424,8 +496,11 @@ export default function Quiz() {
     return (
       <Wrapper onLogout={onLogout}>
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center">
+          <h1 className="text-2xl font-bold mb-2">
+            مرحبا، <span className="text-slate-900">{username}</span> 👋
+          </h1>
           <h1 className="text-2xl font-bold mb-2">لا يوجد كويز قادم الآن</h1>
-          <p className="text-slate-600">عند إضافة كويز وتحديده كـ Active سيظهر هنا.</p>
+          <p className="text-slate-600">عند إضافة كويز مستقبلا سيظهر هنا.</p>
         </div>
       </Wrapper>
     );
@@ -564,6 +639,9 @@ export default function Quiz() {
               if (isPicked && result === "correct") extra = "border-green-600 bg-green-50";
               else if (isPicked && result === "wrong") extra = "border-red-600 bg-red-50";
               else extra = "opacity-80";
+            } else {
+              // ✅ (تحسين بسيط) إبراز الاختيار حتى قبل الإرسال لو تحب
+              if (isPicked) extra = "border-slate-900 bg-slate-50";
             }
 
             return (
