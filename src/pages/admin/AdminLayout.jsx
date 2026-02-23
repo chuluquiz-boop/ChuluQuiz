@@ -10,6 +10,7 @@ const navItems = [
   { to: "/admin/app-state", label: "App State" },
   { to: "/admin/leaderboard", label: "Leaderboard" },
   { to: "/admin/live-stats", label: "Live Stats" },
+  { to: "/admin/partners", label: "Partners" },
 ];
 
 export default function AdminLayout({ title, subtitle, children }) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-
+import PartnersHeader from "../components/PartnersHeader.jsx";
 export default function Leaderboard({ quizId, onClose }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +46,10 @@ export default function Leaderboard({ quizId, onClose }) {
       <button onClick={onClose} className="absolute inset-0 bg-black/50" aria-label="close" />
 
       <div className="relative w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+        <div className="mb-3">
+          <PartnersHeader showTitle={false} className="max-w-none" />
+        </div>
+
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xl font-bold">🏆 الترتيب النهائي</h2>
           <button

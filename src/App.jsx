@@ -17,6 +17,7 @@ import Users from "./pages/admin/Users";
 import AdminLeaderboard from "./pages/admin/AdminLeaderboard";
 import LiveStats from "./pages/admin/LiveStats";
 import CreateQuiz from "./pages/admin/CreateQuiz";
+import Partners from "./pages/admin/Partners";
 export default function App() {
   return (
     <BrowserRouter>
@@ -128,6 +129,14 @@ export default function App() {
           element={
             <RequireAdminAuth>
               <ManageQuiz />
+            </RequireAdminAuth>
+          }
+        />
+        <Route
+          path="/admin/partners"
+          element={
+            <RequireAdminAuth>
+              <Partners />
             </RequireAdminAuth>
           }
         />

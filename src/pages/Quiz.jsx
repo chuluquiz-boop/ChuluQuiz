@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import bg from "../assets/register-bg.png";
 import { apiFetch } from "../lib/api";
 import Leaderboard from "./Leaderboard";
-
+import PartnersHeader from "../components/PartnersHeader.jsx";
 function pad2(n) {
   return String(n).padStart(2, "0");
 }
@@ -37,6 +37,11 @@ function Wrapper({ children, onLogout }) {
       style={{ backgroundImage: `url(${bg})` }}
       dir="rtl"
     >
+      {/* ✅ Partners Header */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 px-3">
+        <PartnersHeader />
+      </div>
+
       {/* زر تسجيل الخروج */}
       <button
         onClick={onLogout}
@@ -75,7 +80,7 @@ export default function Quiz() {
   // حالة العرض المتزامن
   const [currentIdx, setCurrentIdx] = useState(0);
   const [timeLeft, setTimeLeft] = useState(3);
-
+  const finishedSentRef = useRef(false);
   // تخزين اختيارات المستخدم لكل سؤال
   const [pickedByQuestion, setPickedByQuestion] = useState({});
   const [resultByQuestion, setResultByQuestion] = useState({});
@@ -226,7 +231,29 @@ export default function Quiz() {
       clearInterval(interval);
     };
   }, []);
+  useEffect(() => {
+    if (view.mode !== "live") return;
+    if (!questions.length) return;
 
+    const total = questions.length;
+
+    // انتهى الكويز؟
+    if (currentIdx < total) return;
+
+    if (finishedSentRef.current) return;
+    finishedSentRef.current = true;
+
+    // نعلم السيرفر (backend) أفضل من anon مباشرة
+    const quizId = view.quizId;
+
+    fetch("/api/admin/quiz-control/finish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quiz_id: quizId }),
+    }).catch(() => {
+      // حتى لو فشل، ما نحبسوش UI
+    });
+  }, [view.mode, view.quizId, questions.length, currentIdx]);
   // ✅ (جديد) استرجاع إجابات اللاعب من Supabase بعد تحميل الأسئلة
   const restoreProgressFromDb = useCallback(async (quizId) => {
     try {

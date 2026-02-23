@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import bg from "../assets/register-bg.png";
 import { apiFetch } from "../lib/api";
+import PartnersHeader from "../components/PartnersHeader.jsx";
+
 export default function Login() {
   const navigate = useNavigate();
 
@@ -29,17 +31,11 @@ export default function Login() {
         body: JSON.stringify({ username: username.trim(), password }),
       });
 
-
-      // JWT (كما كان)
       localStorage.setItem("quiz_token", json.token);
 
-      // ✅ token الخاص بحفظ الإجابات/النقاط في supabase
-      if (!json.session_token) {
-        throw new Error("session_token غير موجود من السيرفر");
-      }
+      if (!json.session_token) throw new Error("session_token غير موجود من السيرفر");
       localStorage.setItem("session_token", json.session_token);
 
-      // (اختياري) معلومات المستخدم
       if (json.user_id != null) localStorage.setItem("user_id", String(json.user_id));
       if (json.username) localStorage.setItem("username", json.username);
 
@@ -57,6 +53,11 @@ export default function Login() {
       style={{ backgroundImage: `url(${bg})` }}
       dir="rtl"
     >
+      {/* ✅ Partners Header */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 px-3">
+        <PartnersHeader />
+      </div>
+
       <Link
         to="/register"
         className="absolute top-6 right-6 rounded-xl border-2 border-white/80 bg-white/30 px-6 py-2 text-base font-medium text-gray-900 backdrop-blur-sm shadow"
