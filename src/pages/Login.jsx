@@ -49,53 +49,118 @@ export default function Login() {
 
   return (
     <div
-      className="relative min-h-screen w-full bg-center bg-cover flex items-center justify-center p-4"
+      className="min-h-screen w-full bg-center bg-cover relative flex flex-col"
       style={{ backgroundImage: `url(${bg})` }}
       dir="rtl"
     >
-      {/* ✅ Partners Header */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 px-3">
-        <PartnersHeader />
-      </div>
+      {/* Gradient glow خفيف */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/10" />
 
+      {/* زر إنشاء حساب: أقصى الأعلى يسار */}
       <Link
         to="/register"
-        className="absolute top-6 right-6 rounded-xl border-2 border-white/80 bg-white/30 px-6 py-2 text-base font-medium text-gray-900 backdrop-blur-sm shadow"
+        className="
+          absolute top-4 left-4 z-50
+          rounded-2xl
+          px-4 py-2
+          text-sm sm:text-base font-semibold
+          text-slate-900
+          bg-white/15 backdrop-blur-xl
+          border border-white/25
+          shadow-[0_10px_30px_rgba(0,0,0,0.18)]
+          hover:bg-white/25 hover:border-white/35
+          active:scale-[0.98]
+          transition
+        "
       >
         إنشاء حساب
       </Link>
 
-      <form onSubmit={onSubmit} className="w-full max-w-md flex flex-col gap-6">
-        <input
-          className="h-14 rounded-2xl bg-white/90 px-6 text-center text-lg shadow outline-none"
-          placeholder="اسم المستخدم"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-        />
+      {/* الهيدر في المنتصف بالأعلى */}
+      <div className="w-full flex justify-center pt-5 sm:pt-6 px-3 relative z-10">
+        <PartnersHeader />
+      </div>
 
-        <input
-          className="h-14 rounded-2xl bg-white/90 px-6 text-center text-lg shadow outline-none"
-          placeholder="كلمة السر"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
+      {/* محتوى الصفحة */}
+      <div className="flex-1 flex items-center justify-center p-4 relative z-10">
+        <form onSubmit={onSubmit} className="w-full max-w-md">
+          {/* Glass Card للفورم */}
+          <div className="rounded-[26px] p-[1px] bg-gradient-to-r from-white/35 via-white/10 to-white/35 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+            <div className="rounded-[25px] bg-white/12 backdrop-blur-2xl border border-white/15 p-6 sm:p-7">
+              <div className="flex flex-col gap-4">
+                <h1 className="text-center text-white font-extrabold text-xl sm:text-2xl drop-shadow">
+                  تسجيل الدخول
+                </h1>
 
-        {error ? (
-          <div className="text-center text-sm text-red-100 bg-red-600/60 rounded-xl p-3 whitespace-pre-line">
-            {error}
+                <input
+                  className="
+                    h-14 rounded-2xl
+                    bg-white/85
+                    px-6
+                    text-center text-lg
+                    shadow
+                    outline-none
+                    border border-white/40
+                    focus:border-white/70
+                  "
+                  placeholder="اسم المستخدم"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                />
+
+                <input
+                  className="
+                    h-14 rounded-2xl
+                    bg-white/85
+                    px-6
+                    text-center text-lg
+                    shadow
+                    outline-none
+                    border border-white/40
+                    focus:border-white/70
+                  "
+                  placeholder="كلمة السر"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+
+                {error ? (
+                  <div className="text-center text-sm text-red-100 bg-red-600/60 rounded-2xl p-3 whitespace-pre-line border border-red-200/30">
+                    {error}
+                  </div>
+                ) : null}
+
+                <button
+                  disabled={!canSubmit || loading}
+                  className="
+                    h-14 rounded-2xl
+                    bg-black/85 text-white text-lg font-semibold
+                    shadow-[0_18px_45px_rgba(0,0,0,0.28)]
+                    border border-white/10
+                    hover:bg-black/90
+                    disabled:opacity-50
+                    transition
+                  "
+                  type="submit"
+                >
+                  {loading ? "...جاري" : "دخول"}
+                </button>
+
+                {/* رابط صغير (اختياري) */}
+                <div className="text-center text-xs text-white/70">
+                  ليس لديك حساب؟{" "}
+                  <Link className="underline text-white/90" to="/register">
+                    إنشاء حساب
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
-        ) : null}
-
-        <button
-          disabled={!canSubmit || loading}
-          className="h-14 rounded-2xl bg-black/90 text-white text-lg shadow disabled:opacity-50"
-        >
-          {loading ? "...جاري" : "دخول"}
-        </button>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }
