@@ -33,48 +33,41 @@ function PreCountdown({ seconds }) {
 function Wrapper({ children, onLogout }) {
   return (
     <div
-      className="min-h-screen w-full bg-center bg-cover flex flex-col"
+      className="min-h-screen w-full bg-center bg-cover relative flex flex-col"
       style={{ backgroundImage: `url(${bg})` }}
       dir="rtl"
     >
-      {/* ===== Header ثابت ومتجاوب ===== */}
-      <div className="w-full flex items-center justify-between px-4 sm:px-8 pt-6">
+      {/* Gradient glow خلفية خفيفة */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/10" />
 
-        {/* زر الخروج */}
-        <button
-          onClick={onLogout}
-          className="
-            rounded-xl
-            border-2
-            border-white/80
-            bg-white/30
-            px-4
-            py-2
-            text-sm
-            sm:text-base
-            font-semibold
-            text-gray-900
-            backdrop-blur-sm
-            shadow
-            hover:bg-white/40
-            transition
-          "
-          type="button"
-        >
-          تسجيل الخروج
-        </button>
+      {/* زر الخروج: أقصى الأعلى يمين */}
+      <button
+        onClick={onLogout}
+        className="
+          absolute top-4 right-4 z-50
+          rounded-2xl
+          px-4 py-2
+          text-sm sm:text-base font-semibold
+          text-slate-900
+          bg-white/15 backdrop-blur-xl
+          border border-white/25
+          shadow-[0_10px_30px_rgba(0,0,0,0.18)]
+          hover:bg-white/25 hover:border-white/35
+          active:scale-[0.98]
+          transition
+        "
+        type="button"
+      >
+        تسجيل الخروج
+      </button>
 
-        {/* Partners Header */}
-        <div className="flex-1 flex justify-center">
-          <PartnersHeader />
-        </div>
-
-        {/* spacer يمين لموازنة الزر */}
-        <div className="w-[100px] hidden sm:block"></div>
+      {/* الهيدر: في المنتصف بالأعلى */}
+      <div className="w-full flex justify-center pt-5 sm:pt-6 px-3 relative z-10">
+        <PartnersHeader />
       </div>
 
-      {/* ===== محتوى الصفحة ===== */}
-      <div className="flex-1 flex items-center justify-center p-4">
+      {/* محتوى الصفحة */}
+      <div className="flex-1 flex items-center justify-center p-4 relative z-10">
         {children}
       </div>
     </div>
