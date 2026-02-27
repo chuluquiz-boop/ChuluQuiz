@@ -102,8 +102,6 @@ export default function QuizControl() {
         { event: "*", schema: "public", table: "quiz_control", filter: "id=eq.1" },
         (payload) => {
           setControl(payload.new);
-          // ما نبدلوش اختيار الأدمن إذا كان مختار كويز آخر
-          // نخليه على نفس selectedQuizId
         }
       )
       .subscribe();
@@ -120,7 +118,7 @@ export default function QuizControl() {
       const { error } = await supabase.from("quiz_control").update(values).eq("id", 1);
       if (error) throw error;
 
-      // نعيد تحميل الكويزات لأن status قد يتغير (مثلاً reset يرجع draft)
+      // نعيد تحميل الكويزات لأن status قد يتغير
       await load();
     } catch (e) {
       setMsg(e.message || "Update failed");
@@ -153,6 +151,11 @@ export default function QuizControl() {
         status: "live",
         starts_at: startsAt,
       });
+      await apiFetch("/api/admin/quiz-control/seed-lifelines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quiz_id: selectedQuizId }),
+      });
     } catch (e) {
       setMsg(e.message || "Go live failed");
       setLoading(false);
@@ -182,6 +185,11 @@ export default function QuizControl() {
         status: "scheduled",
         starts_at: startsAt,
       });
+      await apiFetch("/api/admin/quiz-control/seed-lifelines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quiz_id: selectedQuizId }),
+      });
     } catch (e) {
       setMsg(e.message || "Schedule failed");
       setLoading(false);
@@ -205,6 +213,39 @@ export default function QuizControl() {
     }
   }
 
+  // ✅ NEW: Finish button (يجعل الكويز منتهي من هنا)
+  async function onFinish() {
+    if (!selectedQuizId) {
+      setMsg("اختر كويز أولاً.");
+      return;
+    }
+
+    // منطقيًا الأفضل: نخلي Finish للكويز النشط فقط
+    if (!isSelectedActive) {
+      setMsg("Finish يعمل فقط للكويز النشط. اختر الكويز النشط أولاً.");
+      return;
+    }
+
+    if (!confirm("هل تريد جعل هذا الكويز منتهي (FINISHED) الآن؟")) return;
+
+    setLoading(true);
+    setMsg("");
+    try {
+      await apiFetch("/api/admin/quiz-control/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quiz_id: selectedQuizId }),
+      });
+
+      await load();
+      setSelectedQuizId(selectedQuizId);
+    } catch (e) {
+      setMsg(e.message || "Finish failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function onReset() {
     const quizId = selectedQuizId || control?.active_quiz_id;
     if (!quizId) {
@@ -223,10 +264,7 @@ export default function QuizControl() {
         body: JSON.stringify({ quiz_id: quizId }),
       });
 
-      // نحدث القائمة لأن quizzes.status قد يرجع draft
       await load();
-
-      // بعد reset نخلي اختيار الأدمن على نفس الكويز
       setSelectedQuizId(quizId);
     } catch (e) {
       setMsg(e.message || "Reset failed");
@@ -255,7 +293,6 @@ export default function QuizControl() {
                   {statusBadge.text}
                 </div>
 
-                {/* توضيح صغير: هل هذا الكويز هو النشط؟ */}
                 {selectedQuizId && (
                   <div className="text-xs text-slate-500 mt-2">
                     {isSelectedActive ? "هذا هو الكويز النشط حالياً." : "هذا كويز غير نشط حالياً."}
@@ -266,9 +303,7 @@ export default function QuizControl() {
               <div className="text-xs text-slate-500">
                 starts_at:{" "}
                 <span className="font-mono">
-                  {isSelectedActive && control?.starts_at
-                    ? new Date(control.starts_at).toLocaleString()
-                    : "—"}
+                  {isSelectedActive && control?.starts_at ? new Date(control.starts_at).toLocaleString() : "—"}
                 </span>
               </div>
             </div>
@@ -278,9 +313,7 @@ export default function QuizControl() {
               {quizzes.map((q) => (
                 <option key={q.id} value={q.id}>
                   {q.title}
-                  {/* ✅ نبيّن finished فقط للكويز اللي status تاعو finished في جدول quizzes */}
                   {q.status === "finished" ? " ✅" : ""}
-                  {/* ✅ ونبيّن النشط */}
                   {q.id === control?.active_quiz_id ? " (active)" : ""}
                 </option>
               ))}
@@ -295,9 +328,7 @@ export default function QuizControl() {
               />
 
               <div className="grid content-end">
-                <div className="text-xs text-slate-500">
-                  * عند Schedule: نحفظ في Supabase (الوقت المختار - ساعة)
-                </div>
+                <div className="text-xs text-slate-500">* عند Schedule: نحفظ في Supabase (الوقت المختار - ساعة)</div>
               </div>
             </div>
 
@@ -316,11 +347,17 @@ export default function QuizControl() {
                     ⏳ Scheduled
                   </Button>
 
-                  {/* Stop فقط إذا المختار هو النشط */}
                   {isSelectedActive && (
-                    <Button variant="soft" disabled={loading} onClick={onStop}>
-                      ⛔ Stop
-                    </Button>
+                    <>
+                      <Button variant="soft" disabled={loading} onClick={onStop}>
+                        ⛔ Stop
+                      </Button>
+
+                      {/* ✅ NEW: Finished */}
+                      <Button variant="soft" disabled={loading} onClick={onFinish}>
+                        ✅ Finished
+                      </Button>
+                    </>
                   )}
                 </>
               )}

@@ -967,7 +967,6 @@ useEffect(() => {
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center">
           <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
           <p className="text-slate-600 mb-5">سيبدأ تلقائيًا عند الوصول للوقت المحدد.</p>
-            <p className="text-slate-600 mb-5">هدايا و مفاجآت في انتظاركم ... لاتفوتوا الفرصة </p>
 
           <div className="flex items-center justify-center gap-3 text-3xl font-bold">
             <span className="rounded-xl bg-slate-100 px-4 py-3">{pad2(h)}</span>

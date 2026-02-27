@@ -18,6 +18,7 @@ import AdminLeaderboard from "./pages/admin/AdminLeaderboard";
 import LiveStats from "./pages/admin/LiveStats";
 import CreateQuiz from "./pages/admin/CreateQuiz";
 import Partners from "./pages/admin/Partners";
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -140,6 +141,7 @@ export default function App() {
             </RequireAdminAuth>
           }
         />
+        
       </Routes>
     </BrowserRouter>
   );

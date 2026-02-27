@@ -18,9 +18,11 @@ export default function Leaderboard({ quizId, onClose }) {
 
       const { data, error } = await supabase
         .from("quiz_leaderboard")
-        .select("user_id,username,score")
+        .select("user_id,username,score,is_winner")
         .eq("quiz_id", quizId)
         .order("score", { ascending: false })
+        // ✅ كسر التعادل بشكل ثابت (حتى ما يتبدلش الترتيب بين المتعادلين)
+        .order("user_id", { ascending: true })
         .limit(100);
 
       if (!mounted) return;
@@ -29,7 +31,7 @@ export default function Leaderboard({ quizId, onClose }) {
         setErr(error.message || "فشل تحميل الترتيب");
         setRows([]);
       } else {
-        setRows(data || []);
+        setRows(Array.isArray(data) ? data : []);
       }
 
       setLoading(false);
@@ -48,16 +50,15 @@ export default function Leaderboard({ quizId, onClose }) {
         onClick={onClose}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         aria-label="close"
+        type="button"
       />
 
       {/* Premium Glass Modal */}
       <div className="relative w-full max-w-lg">
         {/* Gradient Border */}
         <div className="rounded-[28px] p-[1px] bg-gradient-to-r from-white/40 via-white/10 to-white/40 shadow-[0_25px_70px_rgba(0,0,0,0.35)]">
-          
           {/* Glass Card */}
           <div className="rounded-[27px] bg-white/10 backdrop-blur-2xl border border-white/20 p-6">
-
             {/* Header Partners */}
             <div className="mb-4">
               <PartnersHeader showTitle={false} className="max-w-none" />
@@ -65,9 +66,8 @@ export default function Leaderboard({ quizId, onClose }) {
 
             {/* Title Row */}
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white drop-shadow">
-                🏆 الترتيب النهائي
-              </h2>
+              <h2 className="text-xl font-bold text-white drop-shadow">🏆 الترتيب النهائي</h2>
+
               <button
                 onClick={onClose}
                 className="
@@ -80,26 +80,20 @@ export default function Leaderboard({ quizId, onClose }) {
                   hover:bg-white/20
                   transition
                 "
+                type="button"
               >
                 إغلاق
               </button>
             </div>
 
             {loading ? (
-              <div className="text-center text-white/80 py-8">
-                جاري التحميل...
-              </div>
+              <div className="text-center text-white/80 py-8">جاري التحميل...</div>
             ) : err ? (
-              <div className="text-center text-red-300 py-6">
-                {err}
-              </div>
+              <div className="text-center text-red-300 py-6">{err}</div>
             ) : rows.length === 0 ? (
-              <div className="text-center text-white/70 py-8">
-                لا توجد نتائج بعد
-              </div>
+              <div className="text-center text-white/70 py-8">لا توجد نتائج بعد</div>
             ) : (
               <div className="overflow-hidden rounded-2xl border border-white/20">
-                
                 {/* Table Header */}
                 <div className="grid grid-cols-12 bg-white/10 px-4 py-2 text-sm font-semibold text-white">
                   <div className="col-span-2">#</div>
@@ -122,15 +116,30 @@ export default function Leaderboard({ quizId, onClose }) {
                         transition
                       "
                     >
-                      <div className="col-span-2 font-bold">
-                        {i + 1}
+                      <div className="col-span-2 font-bold">{i + 1}</div>
+
+                      <div className="col-span-7 truncate flex items-center gap-2">
+                        <span className="truncate">{r.username}</span>
+
+                        {r.is_winner ? (
+                          <span
+                            className="
+                              shrink-0
+                              text-[11px]
+                              px-2 py-0.5
+                              rounded-full
+                              bg-white/20
+                              border border-white/30
+                              text-white
+                            "
+                            title="الفائز"
+                          >
+                            الفائز ✅
+                          </span>
+                        ) : null}
                       </div>
-                      <div className="col-span-7 truncate">
-                        {r.username}
-                      </div>
-                      <div className="col-span-3 text-left font-bold">
-                        {r.score}
-                      </div>
+
+                      <div className="col-span-3 text-left font-bold">{r.score}</div>
                     </div>
                   ))}
                 </div>
@@ -138,9 +147,8 @@ export default function Leaderboard({ quizId, onClose }) {
             )}
 
             <div className="mt-4 text-xs text-white/60 text-center">
-             شكرا لكل المشاركين! تابعونا للمزيد من المسابقات والجوائز 🎉
+              شكرا لكل المشاركين! تابعونا للمزيد من المسابقات والجوائز 🎉
             </div>
-
           </div>
         </div>
       </div>
