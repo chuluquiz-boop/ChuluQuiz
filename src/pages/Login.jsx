@@ -31,13 +31,24 @@ export default function Login() {
         body: JSON.stringify({ username: username.trim(), password }),
       });
 
-      localStorage.setItem("quiz_token", json.token);
+      // (اختياري) بعض المشاريع تستعمل quiz_token
+      if (json.token) localStorage.setItem("quiz_token", json.token);
 
+      // هذا هو الأهم عندك
       if (!json.session_token) throw new Error("session_token غير موجود من السيرفر");
       localStorage.setItem("session_token", json.session_token);
 
       if (json.user_id != null) localStorage.setItem("user_id", String(json.user_id));
       if (json.username) localStorage.setItem("username", json.username);
+
+      // ✅ (جديد) خزّن رقم الهاتف إذا رجّعو السيرفر
+      // لازم backend يرجّع: phone: user.phone
+      if (json.phone != null) localStorage.setItem("phone", String(json.phone));
+      else localStorage.removeItem("phone"); // تنظيف في حال ما كانش راجع
+
+      // (اختياري) إذا backend يرجّع role/state
+      if (json.role != null) localStorage.setItem("role", String(json.role));
+      if (json.state != null) localStorage.setItem("state", String(json.state));
 
       navigate("/quiz");
     } catch (err) {
