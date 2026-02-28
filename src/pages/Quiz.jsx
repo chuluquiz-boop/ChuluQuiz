@@ -1001,7 +1001,7 @@ export default function Quiz() {
       <Wrapper onLogout={onLogout}>
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center -mt-14">
           <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
-          <p className="text-slate-600 mb-5">سيبدأ تلقائيًا عند الوصول للوقت المحدد.</p>
+          <p className="mb-5 text-red-600 font-extrabold text-xl">سيبدأ تلقائيًا عند الوصول للساعة العاشرة ليلا</p>
           <p className="text-slate-600 mb-5">هدايا و مفاجآت في انتظاركم ... لاتفوتوا الفرصة </p>
 
           <button
@@ -1012,12 +1012,31 @@ export default function Quiz() {
             📜 قواعد المسابقة
           </button>
 
-          <div className="flex items-center justify-center gap-3 text-3xl font-bold">
-            <span className="rounded-xl bg-slate-100 px-4 py-3">{pad2(h)}</span>
-            <span>:</span>
-            <span className="rounded-xl bg-slate-100 px-4 py-3">{pad2(m)}</span>
-            <span>:</span>
-            <span className="rounded-xl bg-slate-100 px-4 py-3">{pad2(s)}</span>
+          <div dir="ltr" className="mt-5 flex items-end justify-center gap-3 font-bold">
+            <div className="flex flex-col items-center">
+              <div className="rounded-xl bg-slate-100 px-4 py-3 text-3xl tabular-nums">
+                {pad2(h)}
+              </div>
+              <div className="mt-1 text-xs font-semibold text-slate-500">h</div>
+            </div>
+
+            <div className="pb-6 text-3xl text-slate-400">:</div>
+
+            <div className="flex flex-col items-center">
+              <div className="rounded-xl bg-slate-100 px-4 py-3 text-3xl tabular-nums">
+                {pad2(m)}
+              </div>
+              <div className="mt-1 text-xs font-semibold text-slate-500">m</div>
+            </div>
+
+            <div className="pb-6 text-3xl text-slate-400">:</div>
+
+            <div className="flex flex-col items-center">
+              <div className="rounded-xl bg-slate-100 px-4 py-3 text-3xl tabular-nums">
+                {pad2(s)}
+              </div>
+              <div className="mt-1 text-xs font-semibold text-slate-500">s</div>
+            </div>
           </div>
 
           <div className="mt-4 text-sm text-slate-500">
