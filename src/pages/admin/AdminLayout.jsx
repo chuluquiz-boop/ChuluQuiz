@@ -11,6 +11,7 @@ const navItems = [
   { to: "/admin/leaderboard", label: "Leaderboard" },
   { to: "/admin/live-stats", label: "Live Stats" },
   { to: "/admin/partners", label: "Partners" },
+  { to: "/admin/rules", label: "Rules" },
 ];
 
 export default function AdminLayout({ title, subtitle, children }) {
@@ -38,8 +39,7 @@ export default function AdminLayout({ title, subtitle, children }) {
                   key={it.to}
                   to={it.to}
                   className={({ isActive }) =>
-                    `px-3 py-2 rounded-xl text-sm transition ${
-                      isActive ? "bg-white/15" : "hover:bg-white/10"
+                    `px-3 py-2 rounded-xl text-sm transition ${isActive ? "bg-white/15" : "hover:bg-white/10"
                     }`
                   }
                 >

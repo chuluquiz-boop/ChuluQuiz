@@ -18,6 +18,8 @@ import AdminLeaderboard from "./pages/admin/AdminLeaderboard";
 import LiveStats from "./pages/admin/LiveStats";
 import CreateQuiz from "./pages/admin/CreateQuiz";
 import Partners from "./pages/admin/Partners";
+import Rules from "./pages/Rules";
+import AdminRules from "./pages/admin/AdminRules";
 
 export default function App() {
   return (
@@ -134,6 +136,16 @@ export default function App() {
           }
         />
         <Route
+          path="/rules"
+          element={
+            <StateGate stateKey="quiz_enabled" allowValue={1} fallback={<NotAvailable />}>
+              <RequireAuth>
+                <Rules />
+              </RequireAuth>
+            </StateGate>
+          }
+        />
+        <Route
           path="/admin/partners"
           element={
             <RequireAdminAuth>
@@ -141,7 +153,15 @@ export default function App() {
             </RequireAdminAuth>
           }
         />
-        
+        <Route
+          path="/admin/rules"
+          element={
+            <RequireAdminAuth>
+              <AdminRules />
+            </RequireAdminAuth>
+          }
+        />
+
       </Routes>
     </BrowserRouter>
   );

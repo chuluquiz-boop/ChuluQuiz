@@ -124,11 +124,14 @@ export default function PartnersHeader({
     <div className={["w-full max-w-[420px] sm:max-w-[560px]", className].join(" ")} dir="ltr">
       {/* IN-DEPTH */}
       {showTitle ? (
-        <div className="text-center mb-2">
-          <span className="inline-block text-[11px] sm:text-xs tracking-[0.45em] text-white/80 drop-shadow uppercase">
-            IN-DEPTH
-          </span>
-        </div>
+        <a
+          href="https://web.facebook.com/people/ChuluQuiz/61575643237719/"
+          target="_blank"
+          rel="noreferrer"
+          className="block w-full text-center text-white/80 text-xs md:text-sm tracking-[0.3em] font-semibold hover:text-white transition"
+        >
+          صفحتنا على الفيسبوك لمزيد من التفاصيل
+        </a>
       ) : null}
 
       {/* Gradient Border Wrapper */}

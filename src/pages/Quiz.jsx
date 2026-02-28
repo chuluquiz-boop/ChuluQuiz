@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../lib/supabase.js";
 import bg from "../assets/register-bg.png";
 import NoQuizPanel from "../components/NoQuizPanel.jsx";
-import { apiFetch } from "../lib/api";
-import Leaderboard from "./Leaderboard";
+import { apiFetch } from "../lib/api.js";
+import Leaderboard from "./Leaderboard.jsx";
 import PartnersHeader from "../components/PartnersHeader.jsx";
 
 function pad2(n) {
@@ -149,6 +149,8 @@ export default function Quiz() {
   const [qLoading, setQLoading] = useState(false);
 
   const [secondsPerQuestion, setSecondsPerQuestion] = useState(3);
+  const [preCountdownSeconds, setPreCountdownSeconds] = useState(10);
+
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
 
   // currentIdx = المؤشر الحقيقي حسب وقت السيرفر
@@ -201,7 +203,7 @@ export default function Quiz() {
     sfx.current.correct = new Audio("/sfx/correct-clap.mp3");
     sfx.current.wrong = new Audio("/sfx/wrong.mp3");
     sfx.current.penalty = new Audio("/sfx/penalty.mp3");
-    sfx.current.beep = new Audio("/sfx/beep.mp3"); // ✅ ضع الملف هنا: public/sfx/beep.mp3
+    sfx.current.beep = new Audio("/sfx/beep.mp3");
 
     for (const k of Object.keys(sfx.current)) {
       try {
@@ -381,6 +383,49 @@ export default function Quiz() {
     return { mode: "none" };
   }, [ctrl, serverNowMs]);
 
+  // ✅ تحميل settings بمجرد وجود quizId (حتى في scheduled)
+  useEffect(() => {
+    let mounted = true;
+
+    async function ensureAndLoadSettings(quizId) {
+      try {
+        await supabase
+          .from("quiz_settings")
+          .upsert({ quiz_id: quizId }, { onConflict: "quiz_id" });
+        console.log("QuizId:", view?.quizId);
+        const { data: settings, error } = await supabase
+          .from("quiz_settings")
+          .select("seconds_per_question, pre_countdown_seconds")
+          .eq("quiz_id", quizId)
+          .maybeSingle();
+        console.log("settings:", settings, "error:", error);
+        if (!mounted) return;
+        if (error) {
+          console.warn("settings load error:", error);
+          return;
+        }
+
+        const seconds = Math.max(1, Number(settings?.seconds_per_question ?? 3));
+        const preSec = Math.max(0, Number(settings?.pre_countdown_seconds ?? 10));
+
+        setSecondsPerQuestion(seconds);
+        setTimeLeft(seconds);
+        setPreCountdownSeconds(preSec);
+
+        // Debug
+        // console.log("Loaded settings ✅", { quizId, seconds, preSec });
+      } catch (e) {
+        console.warn("ensureAndLoadSettings failed:", e);
+      }
+    }
+
+    if (view?.quizId) ensureAndLoadSettings(view.quizId);
+
+    return () => {
+      mounted = false;
+    };
+  }, [view?.quizId]);
+
   // sync server time
   useEffect(() => {
     let mounted = true;
@@ -483,11 +528,11 @@ export default function Quiz() {
     } catch { }
   }, []);
 
-  // load questions + settings (live)
+  // load questions (live فقط)
   useEffect(() => {
     let mounted = true;
 
-    async function loadQuestionsAndSettings(quizId) {
+    async function loadQuestions(quizId) {
       setQLoading(true);
 
       setQuestions([]);
@@ -516,17 +561,6 @@ export default function Quiz() {
         clearTimeout(revealTimerRef.current);
         revealTimerRef.current = null;
       }
-
-      const { data: settings } = await supabase
-        .from("quiz_settings")
-        .select("seconds_per_question")
-        .eq("quiz_id", quizId)
-        .maybeSingle();
-
-      const seconds = Math.max(1, Number(settings?.seconds_per_question ?? 3));
-      if (!mounted) return;
-      setSecondsPerQuestion(seconds);
-      setTimeLeft(seconds);
 
       const { data, error } = await supabase
         .from("questions")
@@ -568,21 +602,27 @@ export default function Quiz() {
       setQLoading(false);
     }
 
-    if (view.mode === "live" && view.quizId) loadQuestionsAndSettings(view.quizId);
+    if (view.mode === "live" && view.quizId) loadQuestions(view.quizId);
 
     return () => {
       mounted = false;
     };
   }, [view.mode, view.quizId, restoreProgressFromDb]);
 
-  // pre-countdown 10s (يعتمد على serverNowMs)
+  // ✅ pre-countdown (يعتمد على serverNowMs) — من settings
   const preCountdown = useMemo(() => {
     if (!view?.startsAtMs) return { show: false, seconds: 0 };
     const diffMs = view.startsAtMs - serverNowMs;
     if (diffMs <= 0) return { show: false, seconds: 0 };
-    if (diffMs <= 10_000) return { show: true, seconds: Math.ceil(diffMs / 1000) };
+
+    const windowMs = Math.max(0, Number(preCountdownSeconds) || 0) * 1000;
+
+    // إذا 0 => تعطيل
+    if (windowMs <= 0) return { show: false, seconds: 0 };
+
+    if (diffMs <= windowMs) return { show: true, seconds: Math.ceil(diffMs / 1000) };
     return { show: false, seconds: 0 };
-  }, [view?.startsAtMs, serverNowMs]);
+  }, [view?.startsAtMs, serverNowMs, preCountdownSeconds]);
 
   // sync current question/timeLeft (حسب وقت السيرفر)
   useEffect(() => {
@@ -714,7 +754,6 @@ export default function Quiz() {
 
     revealTimerRef.current = setTimeout(() => {
       setDisplayedIdx(nextIdx);
-      // ✅ نجهز beep للسؤال الجديد
       lastBeepSecondRef.current = null;
       revealTimerRef.current = null;
     }, REVEAL_MS);
@@ -866,33 +905,29 @@ export default function Quiz() {
       alert(e?.message || "فشل تفعيل 50/50");
     }
   }, [used5050, view.quizId, questions, displayedIdx]);
-  // ✅ beep: في آخر 3 ثواني (3/2/1) مرة واحدة لكل ثانية
- 
 
-  // ✅ كل ما نبدلو السؤال، نرجعو السماح للـ beep
+  // ✅ beep: في آخر 3 ثواني (3/2/1) مرة واحدة لكل ثانية
+  const inRevealForBeep = displayedIdx !== currentIdx;
+
+  useEffect(() => {
+    if (view.mode !== "live") return;
+    if (inRevealForBeep) return;
+
+    const t = Number(timeLeft);
+    if (!Number.isFinite(t)) return;
+
+    if (t > 0 && t <= 3) {
+      if (lastBeepSecondRef.current !== t) {
+        lastBeepSecondRef.current = t;
+        play("beep");
+      }
+    }
+  }, [timeLeft, view.mode, inRevealForBeep, play]);
+
   useEffect(() => {
     lastBeepSecondRef.current = null;
   }, [displayedIdx]);
-  const inRevealForBeep = displayedIdx !== currentIdx;
 
-useEffect(() => {
-  if (view.mode !== "live") return;
-  if (inRevealForBeep) return;
-
-  const t = Number(timeLeft);
-  if (!Number.isFinite(t)) return;
-
-  if (t > 0 && t <= 3) {
-    if (lastBeepSecondRef.current !== t) {
-      lastBeepSecondRef.current = t;
-      play("beep");
-    }
-  }
-}, [timeLeft, view.mode, inRevealForBeep, play]);
-
-useEffect(() => {
-  lastBeepSecondRef.current = null;
-}, [displayedIdx]);
   // ===== UI gating =====
   if (stateLoading) {
     return (
@@ -964,10 +999,18 @@ useEffect(() => {
     const { h, m, s } = msToParts(view.diffMs);
     return (
       <Wrapper onLogout={onLogout}>
-        <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center">
+        <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center -mt-14">
           <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
           <p className="text-slate-600 mb-5">سيبدأ تلقائيًا عند الوصول للوقت المحدد.</p>
-            <p className="text-slate-600 mb-5">هدايا و مفاجآت في انتظاركم ... لاتفوتوا الفرصة </p>
+          <p className="text-slate-600 mb-5">هدايا و مفاجآت في انتظاركم ... لاتفوتوا الفرصة </p>
+
+          <button
+            onClick={() => navigate(`/rules?quiz_id=${view.quizId}`)}
+            className="mt-4 w-full h-12 rounded-2xl bg-white border border-slate-200 text-slate-900 font-semibold shadow-sm hover:bg-slate-50 transition"
+            type="button"
+          >
+            📜 قواعد المسابقة
+          </button>
 
           <div className="flex items-center justify-center gap-3 text-3xl font-bold">
             <span className="rounded-xl bg-slate-100 px-4 py-3">{pad2(h)}</span>
@@ -980,8 +1023,18 @@ useEffect(() => {
           <div className="mt-4 text-sm text-slate-500">
             يبدأ عند: {view.startsAtMs ? new Date(view.startsAtMs).toLocaleString() : "—"}
           </div>
+          <a
+            href="https://web.facebook.com/people/ChuluQuiz/61575643237719/"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-6 block w-full text-center text-black/80 text-xs md:text-sm tracking-[0.3em] font-semibold hover:text-green transition"
+          >
+            صفحتنا على الفيسبوك لمزيد من التفاصيل
+          </a>
         </div>
+
       </Wrapper>
+
     );
   }
 
@@ -1017,7 +1070,7 @@ useEffect(() => {
     );
   }
 
-   const total = questions.length;
+  const total = questions.length;
   const finished = currentIdx >= total;
 
   if (finished) {
@@ -1053,9 +1106,7 @@ useEffect(() => {
   const locked = qid ? lockedQuestionsRef.current.has(qid) : true;
 
   const hiddenArr =
-    qid && Array.isArray(hiddenChoicesByQuestion[qid])
-      ? hiddenChoicesByQuestion[qid]
-      : [];
+    qid && Array.isArray(hiddenChoicesByQuestion[qid]) ? hiddenChoicesByQuestion[qid] : [];
   const hiddenSet = new Set(hiddenArr);
 
   const inReveal = displayedIdx !== currentIdx;
@@ -1064,8 +1115,8 @@ useEffect(() => {
     inReveal && revealed === "correct"
       ? "ring-2 ring-green-500 animate-pulse"
       : inReveal && (revealed === "wrong" || revealed === "timeout")
-      ? "ring-2 ring-red-500 animate-[wiggle_0.35s_ease-in-out_1]"
-      : "";
+        ? "ring-2 ring-red-500 animate-[wiggle_0.35s_ease-in-out_1]"
+        : "";
 
   const questionValue = pointsFromLevel(q.level);
 
@@ -1125,9 +1176,7 @@ useEffect(() => {
                   !inReveal && timeLeft <= 3
                     ? "bg-red-50 border-red-300 text-red-700 animate-[countdownPulse_0.85s_ease-in-out_infinite]"
                     : "bg-slate-50 border-slate-200 text-slate-900",
-                  !inReveal && timeLeft <= 3
-                    ? "shadow-[0_0_0_6px_rgba(239,68,68,0.12)]"
-                    : "",
+                  !inReveal && timeLeft <= 3 ? "shadow-[0_0_0_6px_rgba(239,68,68,0.12)]" : "",
                 ].join(" ")}
                 aria-label="عداد الوقت"
                 title="الوقت المتبقي"
@@ -1137,9 +1186,7 @@ useEffect(() => {
               <span className="text-xs sm:text-sm text-slate-600">ث</span>
             </div>
 
-            <div className="text-sm font-semibold text-slate-800">
-              النقاط: {scoreToShow}
-            </div>
+            <div className="text-sm font-semibold text-slate-800">النقاط: {scoreToShow}</div>
           </div>
         </div>
 
@@ -1148,11 +1195,8 @@ useEffect(() => {
           <button
             onClick={onUseHint}
             disabled={usedHint || inReveal}
-            className={`h-10 px-3 rounded-xl border text-sm font-semibold transition ${
-              usedHint || inReveal
-                ? "opacity-50 bg-slate-100"
-                : "bg-white hover:bg-slate-50"
-            }`}
+            className={`h-10 px-3 rounded-xl border text-sm font-semibold transition ${usedHint || inReveal ? "opacity-50 bg-slate-100" : "bg-white hover:bg-slate-50"
+              }`}
             type="button"
           >
             💡 تلميح (مرة)
@@ -1161,11 +1205,8 @@ useEffect(() => {
           <button
             onClick={onUse5050}
             disabled={used5050 || inReveal}
-            className={`h-10 px-3 rounded-xl border text-sm font-semibold transition ${
-              used5050 || inReveal
-                ? "opacity-50 bg-slate-100"
-                : "bg-white hover:bg-slate-50"
-            }`}
+            className={`h-10 px-3 rounded-xl border text-sm font-semibold transition ${used5050 || inReveal ? "opacity-50 bg-slate-100" : "bg-white hover:bg-slate-50"
+              }`}
             type="button"
           >
             ✂️ 50/50 (مرة)
@@ -1229,9 +1270,7 @@ useEffect(() => {
           </div>
         ) : (
           <div className="mt-5 text-center text-sm text-slate-600">
-            {picked
-              ? "تم حفظ اختيارك ✅ (النتيجة تظهر عند انتهاء الوقت)"
-              : "اختر إجابة قبل انتهاء الوقت ⏳"}
+            {picked ? "تم حفظ اختيارك ✅ (النتيجة تظهر عند انتهاء الوقت)" : "اختر إجابة قبل انتهاء الوقت ⏳"}
           </div>
         )}
       </div>
