@@ -169,6 +169,40 @@ export default function Quiz() {
 
   const [serverScore, setServerScore] = useState(null);
 
+  // ===== Mini Leaderboard (حول اللاعب الحالي) =====
+  const [miniBoard, setMiniBoard] = useState([]); // rows to render (max 5)
+  const [myRank, setMyRank] = useState(null);     // 1-based rank
+  const [miniLoading, setMiniLoading] = useState(false);
+
+  function computeMiniWindow(allRows, myIndex0) {
+    // allRows sorted desc by score
+    const n = allRows.length;
+    if (n === 0) return { slice: [], rank: null };
+
+    // إذا ما لقيناش اللاعب، نعرض Top5 كحل احتياطي
+    if (myIndex0 < 0 || myIndex0 >= n) {
+      return { slice: allRows.slice(0, 5), rank: null };
+    }
+
+    const rank = myIndex0 + 1;
+
+    // نحدد البداية حسب القواعد
+    let start = 0;
+
+    if (myIndex0 === 0) start = 0;                 // الأول: هو + 4 تحت
+    else if (myIndex0 === 1) start = 0;            // الثاني: 1 فوق + هو + 3 تحت
+    else if (myIndex0 >= n - 2) start = n - 5;     // قبل الأخير/الأخير: نخليها آخر 5
+    else start = myIndex0 - 2;                     // وسط: 2 فوق + هو + 2 تحت
+
+    start = Math.max(0, Math.min(start, Math.max(0, n - 5)));
+    const slice = allRows.slice(start, start + 5);
+
+    return { slice, rank };
+  }
+
+
+  // ✅ لحساب سرعة الرد لكل سؤال
+  const [questionStartMs, setQuestionStartMs] = useState(0);
   // نمنع اختيار أكثر من مرة للسؤال
   const lockedQuestionsRef = useRef(new Set());
 
@@ -213,6 +247,8 @@ export default function Quiz() {
       } catch { }
     }
   }, []);
+
+
 
   const play = useCallback((name) => {
     try {
@@ -337,6 +373,7 @@ export default function Quiz() {
       mounted = false;
     };
   }, []);
+  //
 
   // quiz_control realtime
   useEffect(() => {
@@ -382,7 +419,78 @@ export default function Quiz() {
 
     return { mode: "none" };
   }, [ctrl, serverNowMs]);
+  //
+  // ===== Load mini leaderboard during LIVE =====
+  useEffect(() => {
+    if (view.mode !== "live") {
+      setMiniBoard([]);
+      setMyRank(null);
+      return;
+    }
+    if (!view.quizId) return;
 
+    let mounted = true;
+    let timer = null;
+
+    async function loadMini() {
+      try {
+        setMiniLoading(true);
+
+        const userIdRaw = localStorage.getItem("user_id");
+        const userId = Number(userIdRaw);
+
+        // إذا ما عندناش user_id (نادر) نخرج
+        if (!userIdRaw || Number.isNaN(userId)) {
+          if (!mounted) return;
+          setMiniBoard([]);
+          setMyRank(null);
+          return;
+        }
+
+        // نفس مصدر صفحة Leaderboard: view اسمها quiz_leaderboard
+        // نجيب عدد كافي باش نلقى اللاعب (200/500 حسب عدد اللاعبين)
+        const { data, error } = await supabase
+          .from("quiz_leaderboard")
+          .select("user_id,username,score")
+          .eq("quiz_id", view.quizId)
+          .order("score", { ascending: false })
+          .limit(500);
+
+        if (!mounted) return;
+
+        if (error) {
+          console.warn("mini leaderboard error:", error);
+          setMiniBoard([]);
+          setMyRank(null);
+          return;
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        const myIndex0 = rows.findIndex((r) => Number(r.user_id) === Number(userId));
+
+        const { slice, rank } = computeMiniWindow(rows, myIndex0);
+
+        setMiniBoard(slice);
+        setMyRank(rank);
+      } catch (e) {
+        console.warn("mini leaderboard load failed:", e);
+        if (!mounted) return;
+        setMiniBoard([]);
+        setMyRank(null);
+      } finally {
+        if (mounted) setMiniLoading(false);
+      }
+    }
+
+    loadMini();
+    // تحديث كل 3 ثواني (تقدر تخليها 2 أو 5)
+    timer = setInterval(loadMini, 3000);
+
+    return () => {
+      mounted = false;
+      if (timer) clearInterval(timer);
+    };
+  }, [view.mode, view.quizId]);
   // ✅ تحميل settings بمجرد وجود quizId (حتى في scheduled)
   useEffect(() => {
     let mounted = true;
@@ -486,7 +594,7 @@ export default function Quiz() {
 
       const { data: answers, error: aErr } = await supabase
         .from("quiz_answers")
-        .select("question_id, choice_id, is_correct, answered_at")
+        .select("question_id, choice_id, is_correct, is_timeout, answered_at")
         .eq("quiz_id", quizId)
         .eq("user_id", userId)
         .order("answered_at", { ascending: true });
@@ -500,9 +608,14 @@ export default function Quiz() {
 
       for (const a of answers || []) {
         if (!a?.question_id) continue;
+
+        const isTimeout = !!a.is_timeout || (a.choice_id == null && !a.is_correct);
+
+        // picked
         pickedMap[a.question_id] = a.choice_id ?? null;
 
-        const r = a.is_correct ? "correct" : "wrong";
+        // result
+        const r = isTimeout ? "timeout" : (a.is_correct ? "correct" : "wrong");
         resultMap[a.question_id] = r;
         pendingMap[a.question_id] = r;
 
@@ -765,7 +878,11 @@ export default function Quiz() {
   useEffect(() => {
     lastBeepSecondRef.current = null;
   }, [displayedIdx]);
-
+  // ✅ كل مرة نعرض سؤال جديد نسجل وقت بدايته
+  useEffect(() => {
+    // نخدم بـ performance.now لأنه أدق من Date.now للمدد
+    setQuestionStartMs(performance.now());
+  }, [displayedIdx]);
   // score fallback
   const localScore = useMemo(() => {
     if (!questions.length) return 0;
@@ -803,16 +920,19 @@ export default function Quiz() {
 
     lockedQuestionsRef.current.add(question.id);
     setPickedByQuestion((prev) => ({ ...prev, [question.id]: choice.id }));
-
+    const reactionMs = Math.max(0, Math.round(performance.now() - questionStartMs));
     try {
       const res = await apiFetch("/api/quiz/answer", {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
+
         body: JSON.stringify({
           session_token: sessionToken,
           quiz_id: view.quizId,
           question_id: question.id,
           choice_id: choice.id,
+          reaction_ms: reactionMs, // ✅ الجديد
         }),
       });
 
@@ -1175,37 +1295,78 @@ export default function Quiz() {
       ) : null}
 
       <div className={`w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow ${revealClass}`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-sm text-slate-700">
-            سؤال {Math.min(displayedIdx + 1, total)} / {total}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* ✅ TIMER BIG + RED + ANIM */}
-            <div className="flex items-center gap-2">
-              <div
-                className={[
-                  "flex items-center justify-center",
-                  "min-w-[104px] h-12 sm:h-14",
-                  "rounded-2xl px-3",
-                  "font-extrabold tabular-nums",
-                  "border shadow-sm",
-                  "text-2xl sm:text-3xl",
-                  "transition",
-                  !inReveal && timeLeft <= 3
-                    ? "bg-red-50 border-red-300 text-red-700 animate-[countdownPulse_0.85s_ease-in-out_infinite]"
-                    : "bg-slate-50 border-slate-200 text-slate-900",
-                  !inReveal && timeLeft <= 3 ? "shadow-[0_0_0_6px_rgba(239,68,68,0.12)]" : "",
-                ].join(" ")}
-                aria-label="عداد الوقت"
-                title="الوقت المتبقي"
-              >
-                ⏱️ {inReveal ? 0 : timeLeft}
-              </div>
-              <span className="text-xs sm:text-sm text-slate-600">ث</span>
+        <div className="mb-4">
+          {/* السطر الأول: سؤال + مؤقت + نقاط */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm text-slate-700">
+              سؤال {Math.min(displayedIdx + 1, total)} / {total}
             </div>
 
-            <div className="text-sm font-semibold text-slate-800">النقاط: {scoreToShow}</div>
+            <div className="flex items-center gap-3">
+              {/* ✅ TIMER BIG + RED + ANIM */}
+              <div className="flex items-center gap-2">
+                <div
+                  className={[
+                    "flex items-center justify-center",
+                    "min-w-[104px] h-12 sm:h-14",
+                    "rounded-2xl px-3",
+                    "font-extrabold tabular-nums",
+                    "border shadow-sm",
+                    "text-2xl sm:text-3xl",
+                    "transition",
+                    !inReveal && timeLeft <= 3
+                      ? "bg-red-50 border-red-300 text-red-700 animate-[countdownPulse_0.85s_ease-in-out_infinite]"
+                      : "bg-slate-50 border-slate-200 text-slate-900",
+                    !inReveal && timeLeft <= 3 ? "shadow-[0_0_0_6px_rgba(239,68,68,0.12)]" : "",
+                  ].join(" ")}
+                  aria-label="عداد الوقت"
+                  title="الوقت المتبقي"
+                >
+                  ⏱️ {inReveal ? 0 : timeLeft}
+                </div>
+                <span className="text-xs sm:text-sm text-slate-600">ث</span>
+              </div>
+
+              <div className="text-sm font-semibold text-slate-800">
+                النقاط: {scoreToShow}
+              </div>
+            </div>
+          </div>
+
+          {/* ✅ السطر الثاني: Mini Leaderboard (يظهر في الموبايل + الديسكتوب) */}
+          <div className="mt-3">
+            <div className="w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-bold text-slate-700">ترتيبك</div>
+                <div className="text-xs text-slate-500">
+                  {miniLoading ? "..." : myRank ? `#${myRank}` : "—"}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                {(miniBoard || []).map((r) => {
+                  const isMe = Number(r.user_id) === Number(localStorage.getItem("user_id"));
+                  return (
+                    <div
+                      key={r.user_id}
+                      className={[
+                        "flex items-center justify-between rounded-lg px-2 py-1 text-xs",
+                        isMe ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-800",
+                      ].join(" ")}
+                    >
+                      <div className="truncate max-w-[70%]">
+                        {isMe ? "أنت" : (r.username || "—")}
+                      </div>
+                      <div className="font-bold tabular-nums">{r.score ?? 0}</div>
+                    </div>
+                  );
+                })}
+
+                {!miniLoading && (!miniBoard || miniBoard.length === 0) ? (
+                  <div className="text-xs text-slate-500">لا يوجد ترتيب بعد</div>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
 
