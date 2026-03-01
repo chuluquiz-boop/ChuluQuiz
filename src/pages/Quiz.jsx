@@ -1002,7 +1002,7 @@ export default function Quiz() {
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center -mt-14">
           <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
           <p className="mb-5 text-red-600 font-extrabold text-xl">سيبدأ تلقائيًا عند الوصول للساعة العاشرة ليلا</p>
-          <p className="text-slate-600 mb-5">هدايا و مفاجآت في انتظاركم ... لاتفوتوا الفرصة </p>
+          <p className="text-slate-600 mb-5">هذا الكويز تدريبي .. الغرض منه المنافسة و الاستفادة و تكوين خبرة من اجل تحقيق الفوز و حصد جوائز في المرات القادمة</p>
 
           <button
             onClick={() => navigate(`/rules?quiz_id=${view.quizId}`)}
