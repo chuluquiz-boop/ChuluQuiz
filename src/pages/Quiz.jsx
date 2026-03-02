@@ -7,6 +7,7 @@ import { apiFetch } from "../lib/api.js";
 import Leaderboard from "./Leaderboard.jsx";
 import PartnersHeader from "../components/PartnersHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
+import { enablePushNotifications } from "../lib/firebasePush.js";
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -1092,6 +1093,20 @@ export default function Quiz() {
           >
             تسجيل الخروج
           </button>
+          <button
+            onClick={async () => {
+              try {
+                const r = await enablePushNotifications();
+                if (r.ok) alert("✅ تم تفعيل الإشعارات");
+                else alert("❌ لم يتم التفعيل: " + r.reason);
+              } catch (e) {
+                alert("❌ خطأ: " + (e?.message || "حدث خطأ"));
+              }
+            }}
+            className="mt-3 w-full h-12 rounded-2xl bg-black text-white font-semibold"
+          >
+            🔔 فعّل إشعارات الكويز
+          </button>
         </div>
         <SiteFooter />
       </Wrapper>
@@ -1116,7 +1131,7 @@ export default function Quiz() {
           }}
           onDeleted={() => navigate("/login", { replace: true })}
         />
-        
+
       </Wrapper>
     );
   }
@@ -1188,7 +1203,7 @@ export default function Quiz() {
           </a>
           <SiteFooter />
         </div>
-        
+
       </Wrapper>
     );
   }

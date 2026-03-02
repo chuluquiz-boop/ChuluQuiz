@@ -56,6 +56,12 @@ export default function AdminLayout({ title, subtitle, children }) {
               >
                 Logout
               </button>
+              <button
+                onClick={() => navigate("/admin/push")}
+                className="w-full h-11 rounded-xl bg-white border border-slate-200 font-semibold"
+              >
+                🔔 إشعارات
+              </button>
             </div>
           </div>
         </aside>

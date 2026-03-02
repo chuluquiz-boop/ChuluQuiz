@@ -23,6 +23,7 @@ import CreateQuiz from "./pages/admin/CreateQuiz";
 import Partners from "./pages/admin/Partners";
 import Rules from "./pages/Rules";
 import AdminRules from "./pages/admin/AdminRules";
+import AdminPush from "./pages/admin/AdminPush.jsx";
 
 export default function App() {
   return (
@@ -157,6 +158,7 @@ export default function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/admin/push" element={<AdminPush />} />
       </Routes>
     </BrowserRouter>
   );

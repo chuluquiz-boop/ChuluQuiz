@@ -7,8 +7,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.js",
       devOptions: {
-        enabled: true, // مهم حتى تشتغل PWA في dev
+        enabled: true,
       },
       manifest: {
         name: "ChuluQuiz",
