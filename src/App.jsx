@@ -23,7 +23,7 @@ import CreateQuiz from "./pages/admin/CreateQuiz";
 import Partners from "./pages/admin/Partners";
 import Rules from "./pages/Rules";
 import AdminRules from "./pages/admin/AdminRules";
-import AdminPush from "./pages/admin/AdminPush.jsx";
+import AdminPush from "./pages/admin/AdminPush";
 
 export default function App() {
   return (
