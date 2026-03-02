@@ -25,6 +25,12 @@ function roleBadge(role) {
   return badge("User", "bg-slate-100 text-slate-700 border-slate-200");
 }
 
+function guestBadge(isGuest) {
+  const g = !!isGuest;
+  if (g) return badge("Guest", "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200");
+  return badge("Normal", "bg-slate-100 text-slate-700 border-slate-200");
+}
+
 function fmtDate(v) {
   if (!v) return "—";
   const d = new Date(v);
@@ -33,7 +39,8 @@ function fmtDate(v) {
 }
 
 export default function Users() {
-  const API = import.meta.env.VITE_API_URL;
+  // ملاحظة: في مشروعك عندك VITE_API_URL في عدة صفحات
+  const API = import.meta.env.VITE_API_URL || "";
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +50,7 @@ export default function Users() {
   const [q, setQ] = useState("");
   const [stateFilter, setStateFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [guestFilter, setGuestFilter] = useState("all"); // all | guests | normal
 
   async function safeJson(res) {
     const ct = res.headers.get("content-type") || "";
@@ -73,12 +81,11 @@ export default function Users() {
 
   useEffect(() => {
     load();
-    // ملاحظة: بما أننا نستعمل backend فقط،
-    // ما نقدرش نعمل realtime هنا إلا إذا ضفنا Socket أو polling.
   }, []);
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
+
     return (users || [])
       .filter((u) => {
         if (!query) return true;
@@ -89,8 +96,15 @@ export default function Users() {
         );
       })
       .filter((u) => (stateFilter === "all" ? true : String(u.state) === stateFilter))
-      .filter((u) => (roleFilter === "all" ? true : String(u.role || "user") === roleFilter));
-  }, [users, q, stateFilter, roleFilter]);
+      .filter((u) => (roleFilter === "all" ? true : String(u.role || "user") === roleFilter))
+      .filter((u) => {
+        if (guestFilter === "all") return true;
+        const g = !!u.is_guest;
+        return guestFilter === "guests" ? g : !g;
+      });
+  }, [users, q, stateFilter, roleFilter, guestFilter]);
+
+  const guestsCount = useMemo(() => (users || []).filter((u) => !!u.is_guest).length, [users]);
 
   async function setState(userId, state) {
     setBusyId(userId);
@@ -119,9 +133,7 @@ export default function Users() {
     setBusyId(userId);
     setMsg("");
     try {
-      const res = await fetch(`${API}/api/admin/users/${userId}/promote`, {
-        method: "PATCH",
-      });
+      const res = await fetch(`${API}/api/admin/users/${userId}/promote`, { method: "PATCH" });
       const data = await safeJson(res);
       if (!res.ok || !data.ok) throw new Error(data?.message || `HTTP ${res.status}`);
 
@@ -140,9 +152,7 @@ export default function Users() {
     setBusyId(userId);
     setMsg("");
     try {
-      const res = await fetch(`${API}/api/admin/users/${userId}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`${API}/api/admin/users/${userId}`, { method: "DELETE" });
       const data = await safeJson(res);
       if (!res.ok || !data.ok) throw new Error(data?.message || `HTTP ${res.status}`);
 
@@ -154,8 +164,38 @@ export default function Users() {
     }
   }
 
+  // ✅ NEW: حذف كل الضيوف (is_guest=true)
+  async function cleanupGuests() {
+    if (guestsCount === 0) {
+      setMsg("لا يوجد ضيوف لحذفهم.");
+      return;
+    }
+
+    const ok = window.confirm(
+      `⚠️ سيتم حذف ${guestsCount} ضيف (is_guest=true) نهائياً.\nهل أنت متأكد؟`
+    );
+    if (!ok) return;
+
+    setBusyId("cleanup");
+    setMsg("");
+    try {
+      // لازم تكون ضفت endpoint في backend:
+      // DELETE /api/admin/guests
+      const res = await fetch(`${API}/api/admin/guests`, { method: "DELETE" });
+      const data = await safeJson(res);
+      if (!res.ok || !data.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+
+      await load();
+      setMsg("تم حذف الضيوف ✅");
+    } catch (e) {
+      setMsg(e.message || "Failed to cleanup guests");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
-    <AdminLayout title="Users" subtitle="قبول / رفض / حظر / حذف / ترقية إلى Admin (Backend API)">
+    <AdminLayout title="Users" subtitle="قبول / رفض / حظر / حذف / ترقية + تنظيف الضيوف (Backend API)">
       <div className="grid gap-4">
         {msg && (
           <div className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
@@ -165,7 +205,7 @@ export default function Users() {
 
         <Card>
           <CardBody className="grid gap-4">
-            <div className="grid sm:grid-cols-3 gap-3">
+            <div className="grid sm:grid-cols-4 gap-3">
               <Input
                 label="Search"
                 placeholder="username / phone / id"
@@ -186,16 +226,31 @@ export default function Users() {
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
               </Select>
+
+              <Select label="Guests" value={guestFilter} onChange={(e) => setGuestFilter(e.target.value)}>
+                <option value="all">All</option>
+                <option value="guests">Guests only</option>
+                <option value="normal">Normal only</option>
+              </Select>
             </div>
 
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-xs text-slate-500">
-                Total: <span className="font-semibold">{filtered.length}</span>
+                Total (filtered): <span className="font-semibold">{filtered.length}</span>
+                {"  "}
+                <span className="mx-2">•</span>
+                Guests: <span className="font-semibold">{guestsCount}</span>
               </div>
 
-              <Button variant="soft" onClick={load} disabled={loading}>
-                🔄 Refresh
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="danger" onClick={cleanupGuests} disabled={loading || busyId === "cleanup"}>
+                  🧹 Delete Guests
+                </Button>
+
+                <Button variant="soft" onClick={load} disabled={loading}>
+                  🔄 Refresh
+                </Button>
+              </div>
             </div>
           </CardBody>
         </Card>
@@ -209,6 +264,7 @@ export default function Users() {
                   <th className="p-3">Phone</th>
                   <th className="p-3">Role</th>
                   <th className="p-3">State</th>
+                  <th className="p-3">Type</th>
                   <th className="p-3">Created</th>
                   <th className="p-3">Actions</th>
                 </tr>
@@ -217,13 +273,13 @@ export default function Users() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td className="p-4 text-slate-500" colSpan={6}>
+                    <td className="p-4 text-slate-500" colSpan={7}>
                       Loading...
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td className="p-4 text-slate-500" colSpan={6}>
+                    <td className="p-4 text-slate-500" colSpan={7}>
                       No users found.
                     </td>
                   </tr>
@@ -242,6 +298,8 @@ export default function Users() {
                         <td className="p-3">{roleBadge(u.role)}</td>
 
                         <td className="p-3">{stateBadge(u.state)}</td>
+
+                        <td className="p-3">{guestBadge(u.is_guest)}</td>
 
                         <td className="p-3 text-slate-600">{fmtDate(u.created_at)}</td>
 
@@ -306,6 +364,11 @@ export default function Users() {
 
         <div className="text-xs text-slate-500">
           ⚠️ للتجربة فقط: endpoints بدون حماية. بعد ما تتأكدي كل شيء شغال، نرجع نضيف حماية بسيطة.
+        </div>
+
+        <div className="text-xs text-slate-500">
+          ✅ ملاحظة: حتى يبان “Guest/Normal” لازم يكون عندك عمود <span className="font-mono">is_guest</span> في جدول users
+          و endpoint <span className="font-mono">DELETE /api/admin/guests</span> في الباك.
         </div>
       </div>
     </AdminLayout>

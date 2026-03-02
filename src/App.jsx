@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import StateGate from "./components/StateGate";
 import ManageQuiz from "./pages/admin/ManageQuiz";
-import Register from "./pages/Register";
+
 import Login from "./pages/Login";
 import AdminLogin from "./pages/admin/AdminLogin";
 import Dashboard from "./pages/admin/Dashboard";
@@ -30,18 +30,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/quiz" replace />} />
 
-        <Route
-          path="/register"
-          element={
-            <StateGate
-              stateKey="register_enabled"
-              allowValue={1}
-              fallback={<NotAvailable />}
-            >
-              <Register />
-            </StateGate>
-          }
-        />
+
 
         <Route
           path="/login"

@@ -131,6 +131,19 @@ function Wrapper({ children, onLogout }) {
 export default function Quiz() {
   const navigate = useNavigate();
 
+  // ✅ دالة: تجيب session_token الخاص بالكويز إذا موجود، وإلا fallback للعام
+  function getSessionTokenForQuiz(quizId) {
+    try {
+      if (quizId) {
+        const t = localStorage.getItem(`quiz_${quizId}_session_token`);
+        if (t) return t;
+      }
+      return localStorage.getItem("session_token");
+    } catch {
+      return localStorage.getItem("session_token");
+    }
+  }
+
   const [username, setUsername] = useState("");
   useEffect(() => {
     setUsername(localStorage.getItem("username") || "");
@@ -171,7 +184,7 @@ export default function Quiz() {
 
   // ===== Mini Leaderboard (حول اللاعب الحالي) =====
   const [miniBoard, setMiniBoard] = useState([]); // rows to render (max 5)
-  const [myRank, setMyRank] = useState(null);     // 1-based rank
+  const [myRank, setMyRank] = useState(null); // 1-based rank
   const [miniLoading, setMiniLoading] = useState(false);
 
   function computeMiniWindow(allRows, myIndex0) {
@@ -189,17 +202,16 @@ export default function Quiz() {
     // نحدد البداية حسب القواعد
     let start = 0;
 
-    if (myIndex0 === 0) start = 0;                 // الأول: هو + 4 تحت
-    else if (myIndex0 === 1) start = 0;            // الثاني: 1 فوق + هو + 3 تحت
-    else if (myIndex0 >= n - 2) start = n - 5;     // قبل الأخير/الأخير: نخليها آخر 5
-    else start = myIndex0 - 2;                     // وسط: 2 فوق + هو + 2 تحت
+    if (myIndex0 === 0) start = 0; // الأول: هو + 4 تحت
+    else if (myIndex0 === 1) start = 0; // الثاني: 1 فوق + هو + 3 تحت
+    else if (myIndex0 >= n - 2) start = n - 5; // قبل الأخير/الأخير: نخليها آخر 5
+    else start = myIndex0 - 2; // وسط: 2 فوق + هو + 2 تحت
 
     start = Math.max(0, Math.min(start, Math.max(0, n - 5)));
     const slice = allRows.slice(start, start + 5);
 
     return { slice, rank };
   }
-
 
   // ✅ لحساب سرعة الرد لكل سؤال
   const [questionStartMs, setQuestionStartMs] = useState(0);
@@ -248,8 +260,6 @@ export default function Quiz() {
     }
   }, []);
 
-
-
   const play = useCallback((name) => {
     try {
       const a = sfx.current[name];
@@ -259,12 +269,39 @@ export default function Quiz() {
     } catch { }
   }, []);
 
+  // ✅ view يعتمد على serverNowMs + parseTsToMs
+  const safeOffset = Number.isFinite(serverOffsetMs) ? serverOffsetMs : 0;
+  const serverNowMs = Date.now() + safeOffset;
+
+  // quiz_control view
+  const view = useMemo(() => {
+    if (!ctrl) return { mode: "none" };
+    const status = ctrl.status;
+    const startsAtMs = parseTsToMs(ctrl.starts_at);
+
+    if (!ctrl.active_quiz_id) return { mode: "none", reason: "no_active_quiz" };
+
+    if (status === "finished")
+      return { mode: "finished", quizId: ctrl.active_quiz_id, startsAtMs };
+
+    if (status === "live") return { mode: "live", quizId: ctrl.active_quiz_id, startsAtMs };
+
+    if (status === "scheduled" && startsAtMs) {
+      const diff = startsAtMs - serverNowMs;
+      if (diff <= 0) return { mode: "live", quizId: ctrl.active_quiz_id, startsAtMs };
+      return { mode: "scheduled", diffMs: diff, startsAtMs, quizId: ctrl.active_quiz_id };
+    }
+
+    return { mode: "none" };
+  }, [ctrl, serverNowMs]);
+
   // ===== Logout =====
   const onLogout = useCallback(async () => {
     const ok = window.confirm("هل تريد تسجيل الخروج؟");
     if (!ok) return;
 
-    const sessionToken = localStorage.getItem("session_token");
+    const sessionToken = getSessionTokenForQuiz(view?.quizId);
+
     try {
       if (sessionToken) {
         await apiFetch("/api/logout", {
@@ -277,28 +314,36 @@ export default function Quiz() {
       console.warn("logout api failed:", e);
     }
 
+    // ✅ حذف عام
     localStorage.removeItem("session_token");
     localStorage.removeItem("quiz_token");
     localStorage.removeItem("token");
     localStorage.removeItem("user_id");
     localStorage.removeItem("username");
 
+    // ✅ حذف خاص بالكويز (جلسة مؤقتة لكل كويز)
+    if (view?.quizId) {
+      localStorage.removeItem(`quiz_${view.quizId}_session_token`);
+      localStorage.removeItem(`quiz_${view.quizId}_user_id`);
+      localStorage.removeItem(`quiz_${view.quizId}_username`);
+    }
+
     setShowBoard(false);
     navigate("/login", { replace: true });
-  }, [navigate]);
+  }, [navigate, view?.quizId]); // ✅ مهم: أضفنا view.quizId
 
-  // سريع: لازم token
+  // ✅ لازم token
   useEffect(() => {
-    const sessionToken = localStorage.getItem("session_token");
+    const sessionToken = getSessionTokenForQuiz(view?.quizId);
     if (!sessionToken) navigate("/login");
-  }, [navigate]);
+  }, [navigate, view?.quizId]);
 
   // تحقق state + polling
   useEffect(() => {
     let alive = true;
 
     async function checkState() {
-      const sessionToken = localStorage.getItem("session_token");
+      const sessionToken = getSessionTokenForQuiz(view?.quizId);
       if (!sessionToken) {
         if (!alive) return;
         setStateLoading(false);
@@ -330,6 +375,13 @@ export default function Quiz() {
         localStorage.removeItem("token");
         localStorage.removeItem("user_id");
         localStorage.removeItem("username");
+
+        if (view?.quizId) {
+          localStorage.removeItem(`quiz_${view.quizId}_session_token`);
+          localStorage.removeItem(`quiz_${view.quizId}_user_id`);
+          localStorage.removeItem(`quiz_${view.quizId}_username`);
+        }
+
         navigate("/login", { replace: true });
       }
     }
@@ -340,7 +392,7 @@ export default function Quiz() {
       alive = false;
       clearInterval(t);
     };
-  }, [navigate]);
+  }, [navigate, view?.quizId]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -373,7 +425,6 @@ export default function Quiz() {
       mounted = false;
     };
   }, []);
-  //
 
   // quiz_control realtime
   useEffect(() => {
@@ -394,32 +445,6 @@ export default function Quiz() {
     };
   }, []);
 
-  // ✅ serverNowMs آمن
-  const safeOffset = Number.isFinite(serverOffsetMs) ? serverOffsetMs : 0;
-  const serverNowMs = Date.now() + safeOffset;
-
-  // ✅ view يعتمد على serverNowMs + parseTsToMs
-  const view = useMemo(() => {
-    if (!ctrl) return { mode: "none" };
-    const status = ctrl.status;
-    const startsAtMs = parseTsToMs(ctrl.starts_at);
-
-    if (!ctrl.active_quiz_id) return { mode: "none", reason: "no_active_quiz" };
-
-    if (status === "finished")
-      return { mode: "finished", quizId: ctrl.active_quiz_id, startsAtMs };
-
-    if (status === "live") return { mode: "live", quizId: ctrl.active_quiz_id, startsAtMs };
-
-    if (status === "scheduled" && startsAtMs) {
-      const diff = startsAtMs - serverNowMs;
-      if (diff <= 0) return { mode: "live", quizId: ctrl.active_quiz_id, startsAtMs };
-      return { mode: "scheduled", diffMs: diff, startsAtMs, quizId: ctrl.active_quiz_id };
-    }
-
-    return { mode: "none" };
-  }, [ctrl, serverNowMs]);
-  //
   // ===== Load mini leaderboard during LIVE =====
   useEffect(() => {
     if (view.mode !== "live") {
@@ -439,7 +464,6 @@ export default function Quiz() {
         const userIdRaw = localStorage.getItem("user_id");
         const userId = Number(userIdRaw);
 
-        // إذا ما عندناش user_id (نادر) نخرج
         if (!userIdRaw || Number.isNaN(userId)) {
           if (!mounted) return;
           setMiniBoard([]);
@@ -447,8 +471,6 @@ export default function Quiz() {
           return;
         }
 
-        // نفس مصدر صفحة Leaderboard: view اسمها quiz_leaderboard
-        // نجيب عدد كافي باش نلقى اللاعب (200/500 حسب عدد اللاعبين)
         const { data, error } = await supabase
           .from("quiz_leaderboard")
           .select("user_id,username,score")
@@ -483,7 +505,6 @@ export default function Quiz() {
     }
 
     loadMini();
-    // تحديث كل 3 ثواني (تقدر تخليها 2 أو 5)
     timer = setInterval(loadMini, 3000);
 
     return () => {
@@ -491,22 +512,21 @@ export default function Quiz() {
       if (timer) clearInterval(timer);
     };
   }, [view.mode, view.quizId]);
+
   // ✅ تحميل settings بمجرد وجود quizId (حتى في scheduled)
   useEffect(() => {
     let mounted = true;
 
     async function ensureAndLoadSettings(quizId) {
       try {
-        await supabase
-          .from("quiz_settings")
-          .upsert({ quiz_id: quizId }, { onConflict: "quiz_id" });
-        console.log("QuizId:", view?.quizId);
+        await supabase.from("quiz_settings").upsert({ quiz_id: quizId }, { onConflict: "quiz_id" });
+
         const { data: settings, error } = await supabase
           .from("quiz_settings")
           .select("seconds_per_question, pre_countdown_seconds")
           .eq("quiz_id", quizId)
           .maybeSingle();
-        console.log("settings:", settings, "error:", error);
+
         if (!mounted) return;
         if (error) {
           console.warn("settings load error:", error);
@@ -519,9 +539,6 @@ export default function Quiz() {
         setSecondsPerQuestion(seconds);
         setTimeLeft(seconds);
         setPreCountdownSeconds(preSec);
-
-        // Debug
-        // console.log("Loaded settings ✅", { quizId, seconds, preSec });
       } catch (e) {
         console.warn("ensureAndLoadSettings failed:", e);
       }
@@ -611,11 +628,9 @@ export default function Quiz() {
 
         const isTimeout = !!a.is_timeout || (a.choice_id == null && !a.is_correct);
 
-        // picked
         pickedMap[a.question_id] = a.choice_id ?? null;
 
-        // result
-        const r = isTimeout ? "timeout" : (a.is_correct ? "correct" : "wrong");
+        const r = isTimeout ? "timeout" : a.is_correct ? "correct" : "wrong";
         resultMap[a.question_id] = r;
         pendingMap[a.question_id] = r;
 
@@ -730,7 +745,6 @@ export default function Quiz() {
 
     const windowMs = Math.max(0, Number(preCountdownSeconds) || 0) * 1000;
 
-    // إذا 0 => تعطيل
     if (windowMs <= 0) return { show: false, seconds: 0 };
 
     if (diffMs <= windowMs) return { show: true, seconds: Math.ceil(diffMs / 1000) };
@@ -822,7 +836,7 @@ export default function Quiz() {
           timeoutAppliedRef.current.add(prevQid);
 
           try {
-            const sessionToken = localStorage.getItem("session_token");
+            const sessionToken = getSessionTokenForQuiz(view?.quizId);
             if (sessionToken && view.quizId) {
               const r = await apiFetch("/api/quiz/timeout", {
                 method: "POST",
@@ -878,11 +892,12 @@ export default function Quiz() {
   useEffect(() => {
     lastBeepSecondRef.current = null;
   }, [displayedIdx]);
+
   // ✅ كل مرة نعرض سؤال جديد نسجل وقت بدايته
   useEffect(() => {
-    // نخدم بـ performance.now لأنه أدق من Date.now للمدد
     setQuestionStartMs(performance.now());
   }, [displayedIdx]);
+
   // score fallback
   const localScore = useMemo(() => {
     if (!questions.length) return 0;
@@ -901,7 +916,7 @@ export default function Quiz() {
   async function pickChoice(question, choice) {
     if (userState !== 1) return;
 
-    const sessionToken = localStorage.getItem("session_token");
+    const sessionToken = getSessionTokenForQuiz(view?.quizId);
     if (!sessionToken) {
       navigate("/login");
       return;
@@ -910,10 +925,7 @@ export default function Quiz() {
     if (!view.quizId) return;
     if (!canPick(question.id)) return;
 
-    // إذا نحن في مرحلة reveal ما نسمحش
     if (displayedIdx !== currentIdx) return;
-
-    // إذا الوقت خلص
     if (timeLeft <= 0) return;
 
     play("click");
@@ -921,18 +933,17 @@ export default function Quiz() {
     lockedQuestionsRef.current.add(question.id);
     setPickedByQuestion((prev) => ({ ...prev, [question.id]: choice.id }));
     const reactionMs = Math.max(0, Math.round(performance.now() - questionStartMs));
+
     try {
       const res = await apiFetch("/api/quiz/answer", {
-
         method: "POST",
         headers: { "Content-Type": "application/json" },
-
         body: JSON.stringify({
           session_token: sessionToken,
           quiz_id: view.quizId,
           question_id: question.id,
           choice_id: choice.id,
-          reaction_ms: reactionMs, // ✅ الجديد
+          reaction_ms: reactionMs,
         }),
       });
 
@@ -960,7 +971,7 @@ export default function Quiz() {
   const onUseHint = useCallback(async () => {
     if (usedHint) return;
 
-    const sessionToken = localStorage.getItem("session_token");
+    const sessionToken = getSessionTokenForQuiz(view?.quizId);
     if (!sessionToken || !view.quizId) return;
 
     if (!questions.length) return;
@@ -988,12 +999,12 @@ export default function Quiz() {
     } catch (e) {
       alert(e?.message || "فشل تفعيل التلميح");
     }
-  }, [usedHint, view.quizId, questions, displayedIdx]);
+  }, [usedHint, view?.quizId, questions, displayedIdx]);
 
   const onUse5050 = useCallback(async () => {
     if (used5050) return;
 
-    const sessionToken = localStorage.getItem("session_token");
+    const sessionToken = getSessionTokenForQuiz(view?.quizId);
     if (!sessionToken || !view.quizId) return;
 
     if (!questions.length) return;
@@ -1024,7 +1035,7 @@ export default function Quiz() {
     } catch (e) {
       alert(e?.message || "فشل تفعيل 50/50");
     }
-  }, [used5050, view.quizId, questions, displayedIdx]);
+  }, [used5050, view?.quizId, questions, displayedIdx]);
 
   // ✅ beep: في آخر 3 ثواني (3/2/1) مرة واحدة لكل ثانية
   const inRevealForBeep = displayedIdx !== currentIdx;
@@ -1121,8 +1132,14 @@ export default function Quiz() {
       <Wrapper onLogout={onLogout}>
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center -mt-14">
           <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
-          <p className="mb-5 text-red-600 font-extrabold text-xl">سيبدأ تلقائيًا عند الوصول للساعة العاشرة ليلا</p>
-          <p className="text-slate-600 mb-5">كويز سهرة اليوم كويز تدريبي .. الغرض منه المنافسة و الاستفادة و تكوين خبرة من اجل تحقيق الفوز و حصد جوائز في المرات القادمة</p>
+          <p className="mb-5 text-red-600 font-extrabold text-xl">
+            سيبدأ تلقائيًا عند الوصول للساعة العاشرة ليلا
+          </p>
+          <p className="text-slate-600 mb-5">
+            انتظروا كويز سهرة الاثنين  .. كويز مميز  .. أسئلة سيكون بعضها كما وعدناكم من كويز السهرة الماضية و أسئلة أخرى ستكون من حلقة البودكاست المسائي الذي يبثه
+            AYMEN PHOTOGRAPHE PROD
+            انتظرونا هناك جوائز هده المرة
+          </p>
 
           <button
             onClick={() => navigate(`/rules?quiz_id=${view.quizId}`)}
@@ -1134,27 +1151,21 @@ export default function Quiz() {
 
           <div dir="ltr" className="mt-5 flex items-end justify-center gap-3 font-bold">
             <div className="flex flex-col items-center">
-              <div className="rounded-xl bg-slate-100 px-4 py-3 text-3xl tabular-nums">
-                {pad2(h)}
-              </div>
+              <div className="rounded-xl bg-slate-100 px-4 py-3 text-3xl tabular-nums">{pad2(h)}</div>
               <div className="mt-1 text-xs font-semibold text-slate-500">h</div>
             </div>
 
             <div className="pb-6 text-3xl text-slate-400">:</div>
 
             <div className="flex flex-col items-center">
-              <div className="rounded-xl bg-slate-100 px-4 py-3 text-3xl tabular-nums">
-                {pad2(m)}
-              </div>
+              <div className="rounded-xl bg-slate-100 px-4 py-3 text-3xl tabular-nums">{pad2(m)}</div>
               <div className="mt-1 text-xs font-semibold text-slate-500">m</div>
             </div>
 
             <div className="pb-6 text-3xl text-slate-400">:</div>
 
             <div className="flex flex-col items-center">
-              <div className="rounded-xl bg-slate-100 px-4 py-3 text-3xl tabular-nums">
-                {pad2(s)}
-              </div>
+              <div className="rounded-xl bg-slate-100 px-4 py-3 text-3xl tabular-nums">{pad2(s)}</div>
               <div className="mt-1 text-xs font-semibold text-slate-500">s</div>
             </div>
           </div>
@@ -1162,6 +1173,7 @@ export default function Quiz() {
           <div className="mt-4 text-sm text-slate-500">
             يبدأ عند: {view.startsAtMs ? new Date(view.startsAtMs).toLocaleString() : "—"}
           </div>
+
           <a
             href="https://web.facebook.com/people/ChuluQuiz/61575643237719/"
             target="_blank"
@@ -1171,9 +1183,7 @@ export default function Quiz() {
             صفحتنا على الفيسبوك لمزيد من التفاصيل
           </a>
         </div>
-
       </Wrapper>
-
     );
   }
 
@@ -1215,9 +1225,7 @@ export default function Quiz() {
   if (finished) {
     return (
       <Wrapper onLogout={onLogout}>
-        {showBoard ? (
-          <Leaderboard quizId={view.quizId} onClose={() => setShowBoard(false)} />
-        ) : null}
+        {showBoard ? <Leaderboard quizId={view.quizId} onClose={() => setShowBoard(false)} /> : null}
 
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center">
           <h1 className="text-3xl font-bold mb-2">انتهى الكويز 🎉</h1>
@@ -1296,14 +1304,12 @@ export default function Quiz() {
 
       <div className={`w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow ${revealClass}`}>
         <div className="mb-4">
-          {/* السطر الأول: سؤال + مؤقت + نقاط */}
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm text-slate-700">
               سؤال {Math.min(displayedIdx + 1, total)} / {total}
             </div>
 
             <div className="flex items-center gap-3">
-              {/* ✅ TIMER BIG + RED + ANIM */}
               <div className="flex items-center gap-2">
                 <div
                   className={[
@@ -1327,13 +1333,10 @@ export default function Quiz() {
                 <span className="text-xs sm:text-sm text-slate-600">ث</span>
               </div>
 
-              <div className="text-sm font-semibold text-slate-800">
-                النقاط: {scoreToShow}
-              </div>
+              <div className="text-sm font-semibold text-slate-800">النقاط: {scoreToShow}</div>
             </div>
           </div>
 
-          {/* ✅ السطر الثاني: Mini Leaderboard (يظهر في الموبايل + الديسكتوب) */}
           <div className="mt-3">
             <div className="w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
               <div className="flex items-center justify-between mb-2">
@@ -1355,7 +1358,7 @@ export default function Quiz() {
                       ].join(" ")}
                     >
                       <div className="truncate max-w-[70%]">
-                        {isMe ? "أنت" : (r.username || "—")}
+                        {isMe ? "أنت" : r.username || "—"}
                       </div>
                       <div className="font-bold tabular-nums">{r.score ?? 0}</div>
                     </div>
@@ -1400,9 +1403,7 @@ export default function Quiz() {
           <span className="text-sm text-slate-600">قيمة السؤال: {questionValue}</span>
         </div>
 
-        <h2 className="text-xl font-bold text-slate-900 mb-4 text-center">
-          {q.question_text}
-        </h2>
+        <h2 className="text-xl font-bold text-slate-900 mb-4 text-center">{q.question_text}</h2>
 
         <div className="grid gap-3">
           {(q.choices || [])
@@ -1435,7 +1436,6 @@ export default function Quiz() {
             })}
         </div>
 
-        {/* Reveal message */}
         {inReveal ? (
           <div className="mt-4 text-center text-sm font-semibold">
             {revealed === "correct" ? (

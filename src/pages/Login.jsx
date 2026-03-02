@@ -1,62 +1,89 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import bg from "../assets/register-bg.png";
 import { apiFetch } from "../lib/api";
 import PartnersHeader from "../components/PartnersHeader.jsx";
+import { supabase } from "../lib/supabase.js";
 
 export default function Login() {
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const canSubmit = username.trim().length >= 2 && password.length >= 6;
+  // لازم لقب فقط
+  const canSubmit = username.trim().length >= 2;
+
+  // ✅ نجيب quiz_id الحقيقي من quiz_control (active_quiz_id)
+  async function getActiveQuizId() {
+    const { data, error: sErr } = await supabase
+      .from("quiz_control")
+      .select("active_quiz_id,status")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (sErr) throw new Error(sErr.message);
+
+    const qid = String(data?.active_quiz_id || "").trim();
+    if (!qid) throw new Error("لا يوجد كويز نشط حاليا (active_quiz_id فارغ).");
+
+    return qid;
+  }
 
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
 
     if (!canSubmit) {
-      setError("تحقق من البيانات: الاسم وكلمة السر.");
+      setError("اكتب لقب لا يقل عن حرفين.");
       return;
     }
 
     setLoading(true);
     try {
-      const json = await apiFetch("/api/login", {
+      // ✅ 1) نجيب quiz_id من Supabase بدل الرابط
+      const quizId = await getActiveQuizId();
+
+      // ✅ 2) Join quiz session (temporary)
+      const json = await apiFetch("/api/quiz/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password }),
+        body: JSON.stringify({
+          quiz_id: quizId, // ✅ لازم يكون موجود
+          username: username.trim(),
+        }),
       });
 
-      // (اختياري) بعض المشاريع تستعمل quiz_token
-      if (json.token) localStorage.setItem("quiz_token", json.token);
+      if (!json?.session_token) throw new Error("session_token غير موجود من السيرفر");
 
-      // هذا هو الأهم عندك
-      if (!json.session_token) throw new Error("session_token غير موجود من السيرفر");
+      // ✅ نخزنو session لكل كويز + fallback keys
+      const keyPrefix = `quiz_${quizId}_`;
+
+      localStorage.setItem(`${keyPrefix}session_token`, json.session_token);
+      if (json.user_id != null) localStorage.setItem(`${keyPrefix}user_id`, String(json.user_id));
+      if (json.username) localStorage.setItem(`${keyPrefix}username`, String(json.username));
+
+      // ✅ fallback keys (باش ما نكسروش RequireAuth/Quiz الحالي)
       localStorage.setItem("session_token", json.session_token);
-
       if (json.user_id != null) localStorage.setItem("user_id", String(json.user_id));
-      if (json.username) localStorage.setItem("username", json.username);
+      if (json.username) localStorage.setItem("username", String(json.username));
 
-      // ✅ (جديد) خزّن رقم الهاتف إذا رجّعو السيرفر
-      // لازم backend يرجّع: phone: user.phone
-      if (json.phone != null) localStorage.setItem("phone", String(json.phone));
-      else localStorage.removeItem("phone"); // تنظيف في حال ما كانش راجع
-
-      // (اختياري) إذا backend يرجّع role/state
-      if (json.role != null) localStorage.setItem("role", String(json.role));
-      if (json.state != null) localStorage.setItem("state", String(json.state));
+      // (اختياري) إذا تحب تخزّن آخر quiz_id
+      localStorage.setItem("last_quiz_id", quizId);
 
       navigate("/quiz");
     } catch (err) {
-      setError(err?.message || "حدث خطأ أثناء تسجيل الدخول.");
+      setError(err?.message || "تعذر إنشاء جلسة الدخول.");
     } finally {
       setLoading(false);
     }
   }
+
+  // ✅ تنظيف بسيط عند فتح صفحة الدخول (اختياري)
+  useEffect(() => {
+    setError("");
+  }, []);
 
   return (
     <div
@@ -64,61 +91,22 @@ export default function Login() {
       style={{ backgroundImage: `url(${bg})` }}
       dir="rtl"
     >
-      {/* Gradient glow خفيف */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/10" />
 
-      {/* زر إنشاء حساب: أقصى الأعلى يسار */}
-      <Link
-        to="/register"
-        className="
-          absolute top-4 left-4 z-50
-          rounded-2xl
-          px-4 py-2
-          text-sm sm:text-base font-semibold
-          text-slate-900
-          bg-white/15 backdrop-blur-xl
-          border border-white/25
-          shadow-[0_10px_30px_rgba(0,0,0,0.18)]
-          hover:bg-white/25 hover:border-white/35
-          active:scale-[0.98]
-          transition
-        "
-      >
-        إنشاء حساب
-      </Link>
-
-      {/* الهيدر في المنتصف بالأعلى */}
       <div className="w-full flex justify-center pt-5 sm:pt-6 px-3 relative z-10">
         <PartnersHeader />
       </div>
 
-      {/* محتوى الصفحة */}
       <div className="flex-1 flex items-center justify-center p-4 relative z-10">
         <form onSubmit={onSubmit} className="w-full max-w-md">
-          {/* Glass Card للفورم */}
           <div className="rounded-[26px] p-[1px] bg-gradient-to-r from-white/35 via-white/10 to-white/35 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
             <div className="rounded-[25px] bg-white/12 backdrop-blur-2xl border border-white/15 p-6 sm:p-7">
               <div className="flex flex-col gap-4">
                 <h1 className="text-center text-white font-extrabold text-xl sm:text-2xl drop-shadow">
-                  تسجيل الدخول
+                  دخول سريع 🎟️
                 </h1>
 
-                <input
-                  className="
-                    h-14 rounded-2xl
-                    bg-white/85
-                    px-6
-                    text-center text-lg
-                    shadow
-                    outline-none
-                    border border-white/40
-                    focus:border-white/70
-                  "
-                  placeholder="اسم المستخدم"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  autoComplete="username"
-                />
+                <p className="text-center text-white/80 text-sm">تسجيل الدخول</p>
 
                 <input
                   className="
@@ -131,11 +119,10 @@ export default function Login() {
                     border border-white/40
                     focus:border-white/70
                   "
-                  placeholder="كلمة السر"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
+                  placeholder="اكتب اسمك للمشاركة"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="nickname"
                 />
 
                 {error ? (
@@ -160,12 +147,8 @@ export default function Login() {
                   {loading ? "...جاري" : "دخول"}
                 </button>
 
-                {/* رابط صغير (اختياري) */}
-                <div className="text-center text-xs text-white/70">
-                  ليس لديك حساب؟{" "}
-                  <Link className="underline text-white/90" to="/register">
-                    إنشاء حساب
-                  </Link>
+                <div className="text-center text-xs text-white/60">
+                  ملاحظة: يتم جلب الكويز النشط تلقائياً ✅
                 </div>
               </div>
             </div>
