@@ -7,7 +7,7 @@ import { apiFetch } from "../lib/api.js";
 import Leaderboard from "./Leaderboard.jsx";
 import PartnersHeader from "../components/PartnersHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
-import { enablePushNotifications } from "../lib/firebasePush.js";
+import { initPushForUser } from "../lib/push.js";
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -132,6 +132,13 @@ function Wrapper({ children, onLogout }) {
 
 export default function Quiz() {
   const navigate = useNavigate();
+  const [pushStatus, setPushStatus] = useState("");
+  async function onEnablePush() {
+    setPushStatus("");
+    const res = await initPushForUser();
+    if (res.ok) setPushStatus("✅ تم تفعيل الإشعارات");
+    else setPushStatus("❌ لم يتم التفعيل: " + res.reason);
+  }
 
   // ✅ دالة: تجيب session_token الخاص بالكويز إذا موجود، وإلا fallback للعام
   function getSessionTokenForQuiz(quizId) {
@@ -147,6 +154,7 @@ export default function Quiz() {
   }
 
   const [username, setUsername] = useState("");
+
   useEffect(() => {
     setUsername(localStorage.getItem("username") || "");
   }, []);
@@ -1139,19 +1147,16 @@ export default function Quiz() {
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center -mt-14">
           <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
           <button
-            onClick={async () => {
-              try {
-                const r = await enablePushNotifications();
-                if (r.ok) alert("✅ تم تفعيل الإشعارات");
-                else alert("❌ لم يتم التفعيل: " + r.reason);
-              } catch (e) {
-                alert("❌ خطأ: " + (e?.message || "حدث خطأ"));
-              }
-            }}
-            className="mt-3 w-full h-12 rounded-2xl bg-black text-white font-semibold"
+            onClick={onEnablePush}
+            className="..."  // خليه نفس الكلاسات تاعك
+            type="button"
           >
-            🔔 فعّل إشعارات الكويز
+            فعل إشعارات الكويز 🔔
           </button>
+
+          {pushStatus ? (
+            <p className="mt-2 text-sm text-slate-700">{pushStatus}</p>
+          ) : null}
           <p className="mb-5 text-red-600 font-extrabold text-xl">
             سيبدأ تلقائيًا عند الوصول للساعة العاشرة ليلا
           </p>
