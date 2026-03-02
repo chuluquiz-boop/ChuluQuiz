@@ -158,7 +158,7 @@ export default function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/admin/push" element={<AdminPush />} />
+        <Route path="/admin/AdminPush" element={<AdminPush />} />
       </Routes>
     </BrowserRouter>
   );

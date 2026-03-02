@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
+
 const navItems = [
   { to: "/admin/dashboard", label: "Dashboard" },
   { to: "/admin/create-quiz", label: "Create Quiz" },
@@ -12,6 +13,7 @@ const navItems = [
   { to: "/admin/live-stats", label: "Live Stats" },
   { to: "/admin/partners", label: "Partners" },
   { to: "/admin/rules", label: "Rules" },
+  { to: "/admin/AdminPush", label: "AdminPush" },
 ];
 
 export default function AdminLayout({ title, subtitle, children }) {
@@ -57,7 +59,7 @@ export default function AdminLayout({ title, subtitle, children }) {
                 Logout
               </button>
               <button
-                onClick={() => navigate("/admin/push")}
+                onClick={() => nav("/admin/AdminPush")}
                 className="w-full h-11 rounded-xl bg-white border border-slate-200 font-semibold"
               >
                 🔔 إشعارات

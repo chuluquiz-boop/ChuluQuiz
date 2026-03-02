@@ -1093,20 +1093,7 @@ export default function Quiz() {
           >
             تسجيل الخروج
           </button>
-          <button
-            onClick={async () => {
-              try {
-                const r = await enablePushNotifications();
-                if (r.ok) alert("✅ تم تفعيل الإشعارات");
-                else alert("❌ لم يتم التفعيل: " + r.reason);
-              } catch (e) {
-                alert("❌ خطأ: " + (e?.message || "حدث خطأ"));
-              }
-            }}
-            className="mt-3 w-full h-12 rounded-2xl bg-black text-white font-semibold"
-          >
-            🔔 فعّل إشعارات الكويز
-          </button>
+
         </div>
         <SiteFooter />
       </Wrapper>
@@ -1151,6 +1138,20 @@ export default function Quiz() {
       <Wrapper onLogout={onLogout}>
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center -mt-14">
           <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
+          <button
+            onClick={async () => {
+              try {
+                const r = await enablePushNotifications();
+                if (r.ok) alert("✅ تم تفعيل الإشعارات");
+                else alert("❌ لم يتم التفعيل: " + r.reason);
+              } catch (e) {
+                alert("❌ خطأ: " + (e?.message || "حدث خطأ"));
+              }
+            }}
+            className="mt-3 w-full h-12 rounded-2xl bg-black text-white font-semibold"
+          >
+            🔔 فعّل إشعارات الكويز
+          </button>
           <p className="mb-5 text-red-600 font-extrabold text-xl">
             سيبدأ تلقائيًا عند الوصول للساعة العاشرة ليلا
           </p>
