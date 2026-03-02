@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase.js";
 import bg from "../assets/register-bg.png";
 import PartnersHeader from "../components/PartnersHeader.jsx";
+import SiteFooter from "../components/SiteFooter.jsx";
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -270,8 +271,11 @@ export default function NotAvailable() {
           >
             صفحتنا على الفيسبوك لمزيد من التفاصيل
           </a>
+         <SiteFooter />
         </div>
+        
       </Wrapper>
+       
     );
   }
 

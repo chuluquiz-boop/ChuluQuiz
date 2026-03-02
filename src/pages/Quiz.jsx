@@ -6,6 +6,7 @@ import NoQuizPanel from "../components/NoQuizPanel.jsx";
 import { apiFetch } from "../lib/api.js";
 import Leaderboard from "./Leaderboard.jsx";
 import PartnersHeader from "../components/PartnersHeader.jsx";
+import SiteFooter from "../components/SiteFooter.jsx";
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -1092,6 +1093,7 @@ export default function Quiz() {
             تسجيل الخروج
           </button>
         </div>
+        <SiteFooter />
       </Wrapper>
     );
   }
@@ -1114,6 +1116,7 @@ export default function Quiz() {
           }}
           onDeleted={() => navigate("/login", { replace: true })}
         />
+        
       </Wrapper>
     );
   }
@@ -1122,6 +1125,7 @@ export default function Quiz() {
     return (
       <Wrapper onLogout={onLogout}>
         <PreCountdown seconds={preCountdown.seconds} />
+        <SiteFooter />
       </Wrapper>
     );
   }
@@ -1182,7 +1186,9 @@ export default function Quiz() {
           >
             صفحتنا على الفيسبوك لمزيد من التفاصيل
           </a>
+          <SiteFooter />
         </div>
+        
       </Wrapper>
     );
   }
@@ -1453,6 +1459,7 @@ export default function Quiz() {
             {picked ? "تم حفظ اختيارك ✅ (النتيجة تظهر عند انتهاء الوقت)" : "اختر إجابة قبل انتهاء الوقت ⏳"}
           </div>
         )}
+        <SiteFooter />
       </div>
     </Wrapper>
   );

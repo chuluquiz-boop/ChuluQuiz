@@ -4,7 +4,7 @@ import bg from "../assets/register-bg.png";
 import { apiFetch } from "../lib/api";
 import PartnersHeader from "../components/PartnersHeader.jsx";
 import { supabase } from "../lib/supabase.js";
-
+import SiteFooter from "../components/SiteFooter.jsx";
 export default function Login() {
   const navigate = useNavigate();
 
@@ -155,6 +155,7 @@ export default function Login() {
           </div>
         </form>
       </div>
+      <SiteFooter />
     </div>
   );
 }
