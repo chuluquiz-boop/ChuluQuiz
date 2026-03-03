@@ -22,7 +22,7 @@ function PremiumRow({ label, item }) {
   return (
     <div className="flex items-center justify-center gap-3">
       {/* Label */}
-      <div className="text-[13px] sm:text-sm text-white/85 whitespace-nowrap drop-shadow">
+      <div className="text-[13px] sm:text-sm text-white/85 font-semibold tracking-wide whitespace-nowrap drop-shadow">
         {label}
       </div>
 
@@ -121,7 +121,7 @@ export default function PartnersHeader({
   if (!host && !sponsor) return null;
 
   return (
-    <div className={["w-full max-w-[420px] sm:max-w-[560px]", className].join(" ")} dir="ltr">
+    <div className={["w-full max-w-[420px] sm:max-w-[560px]", className].join(" ")} dir="rtl">
       {/* IN-DEPTH */}
       {showTitle ? (
         <a
@@ -147,8 +147,8 @@ export default function PartnersHeader({
           "
         >
           <div className="flex flex-col gap-2">
-            <PremiumRow label="Hosted by" item={host} />
-            <PremiumRow label="Sponsored by" item={sponsor} />
+            <PremiumRow label="بالشراكة مع" item={host} />
+            <PremiumRow label="برعاية" item={sponsor} />
           </div>
 
           {err ? (
