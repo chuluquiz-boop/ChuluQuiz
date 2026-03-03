@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import AdminScheduledCopy from "./pages/admin/AdminScheduledCopy";
 import StateGate from "./components/StateGate";
 import ManageQuiz from "./pages/admin/ManageQuiz";
 import Privacy from "./pages/Privacy";
@@ -158,7 +159,24 @@ export default function App() {
         <Route path="/terms" element={<Terms />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/admin/AdminPush" element={<AdminPush />} />
+
+        <Route
+          path="/admin/AdminPush"
+          element={
+            <RequireAdminAuth>
+              <AdminPush />
+            </RequireAdminAuth>
+          }
+        />
+        <Route
+          path="/admin/scheduled-copy"
+          element={
+            <RequireAdminAuth>
+              <AdminScheduledCopy />
+            </RequireAdminAuth>
+          }
+        />
+
       </Routes>
     </BrowserRouter>
   );

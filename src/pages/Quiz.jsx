@@ -133,11 +133,35 @@ function Wrapper({ children, onLogout }) {
 export default function Quiz() {
   const navigate = useNavigate();
   const [pushStatus, setPushStatus] = useState("");
+  const [pushEnabled, setPushEnabled] = useState(false);
+
+  function readPushEnabled() {
+    try {
+      // إذا عندك توكن محفوظ من push.js استعمله (بدّل الاسم إذا مختلف)
+      const hasToken = !!localStorage.getItem("fcm_token"); // ✅ اسم موحد
+      const perm = typeof Notification !== "undefined" ? Notification.permission : "default";
+      return hasToken && perm === "granted";
+    } catch {
+      return false;
+    }
+  }
   async function onEnablePush() {
     setPushStatus("");
+
     const res = await initPushForUser();
-    if (res.ok) setPushStatus("✅ تم تفعيل الإشعارات");
-    else setPushStatus("❌ لم يتم التفعيل: " + res.reason);
+
+    if (res.ok) {
+      try {
+        if (res.token) localStorage.setItem("fcm_token", res.token); // ✅ نخزنو
+      } catch { }
+
+      setPushEnabled(true);
+      setPushStatus("✅ تم تفعيل الإشعارات بنجاح");
+    } else {
+      // لو رفض permission نخليها false
+      setPushEnabled(false);
+      setPushStatus("❌ لم يتم التفعيل: " + (res.reason || ""));
+    }
   }
 
   // ✅ دالة: تجيب session_token الخاص بالكويز إذا موجود، وإلا fallback للعام
@@ -158,6 +182,14 @@ export default function Quiz() {
   useEffect(() => {
     setUsername(localStorage.getItem("username") || "");
   }, []);
+  useEffect(() => {
+    setPushEnabled(readPushEnabled());
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => setPushEnabled(readPushEnabled()), 3000);
+    return () => clearInterval(t);
+  }, []);
 
   // ✅ state تاع المستخدم
   const [userState, setUserState] = useState(null);
@@ -170,7 +202,11 @@ export default function Quiz() {
 
   const [questions, setQuestions] = useState([]);
   const [qLoading, setQLoading] = useState(false);
-
+  // ===== Scheduled Copy (نصوص الكويز المجدول) =====
+  const [scheduledTitle, setScheduledTitle] = useState("");
+  const [scheduledStartLine, setScheduledStartLine] = useState("");
+  const [scheduledBody, setScheduledBody] = useState([]);
+  const [scheduledCopyLoading, setScheduledCopyLoading] = useState(false);
   const [secondsPerQuestion, setSecondsPerQuestion] = useState(3);
   const [preCountdownSeconds, setPreCountdownSeconds] = useState(10);
 
@@ -560,6 +596,76 @@ export default function Quiz() {
       mounted = false;
     };
   }, [view?.quizId]);
+
+  // ✅ تحميل نصوص وضع scheduled من DB
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadScheduledCopy() {
+      if (view.mode !== "scheduled") return;
+
+      setScheduledCopyLoading(true);
+
+      async function fetchByQuiz(quizIdNullable) {
+        let q = supabase
+          .from("scheduled_copy")
+          .select("slot, content, order_index")
+          .eq("stat", 1)
+          .eq("state", 1)
+          .order("order_index", { ascending: true });
+
+        if (quizIdNullable === null) q = q.is("quiz_id", null);
+        else q = q.eq("quiz_id", quizIdNullable);
+
+        const { data, error } = await q;
+        if (error) throw error;
+        return Array.isArray(data) ? data : [];
+      }
+
+      try {
+        // 1) نحاول نصوص خاصة بالكويز
+        let rows = [];
+        if (view.quizId) rows = await fetchByQuiz(view.quizId);
+
+        // 2) fallback للنصوص العامة
+        if (!rows.length) rows = await fetchByQuiz(null);
+
+        if (!mounted) return;
+
+        // title
+        const titleRow = rows.find((r) => r.slot === "title");
+        setScheduledTitle(titleRow?.content ? String(titleRow.content) : "الكويز مجدول");
+
+        // start_line
+        const startRow = rows.find((r) => r.slot === "start_line");
+        setScheduledStartLine(
+          startRow?.content ? String(startRow.content) : "سيبدأ تلقائيًا عند الوصول للوقت المحدد"
+        );
+
+        // body paragraphs
+        const bodyRows = rows
+          .filter((r) => r.slot === "body")
+          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+
+        setScheduledBody(bodyRows);
+      } catch (e) {
+        console.warn("loadScheduledCopy failed:", e);
+        if (!mounted) return;
+
+        setScheduledTitle("الكويز مجدول");
+        setScheduledStartLine("سيبدأ تلقائيًا عند الوصول للوقت المحدد");
+        setScheduledBody([]);
+      } finally {
+        if (mounted) setScheduledCopyLoading(false);
+      }
+    }
+
+    loadScheduledCopy();
+
+    return () => {
+      mounted = false;
+    };
+  }, [view.mode, view.quizId]);
 
   // sync server time
   useEffect(() => {
@@ -1144,27 +1250,50 @@ export default function Quiz() {
     const { h, m, s } = msToParts(view.diffMs);
     return (
       <Wrapper onLogout={onLogout}>
-        <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center -mt-14">
-          <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
-          <button
-            onClick={onEnablePush}
-            className="..."  // خليه نفس الكلاسات تاعك
-            type="button"
-          >
-            فعل إشعارات الكويز 🔔
-          </button>
+        <div className="relative w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center -mt-14">
+          <h1 className="text-2xl font-bold mb-2">
+            {scheduledCopyLoading ? "..." : scheduledTitle || "الكويز مجدول"}
+          </h1>
+
+          <div className="absolute top-4 right-4">
+            <button
+              onClick={!pushEnabled ? onEnablePush : undefined}
+              type="button"
+              className={[
+                "flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold border transition",
+                pushEnabled
+                  ? "bg-green-50 text-green-700 border-green-200 cursor-default"
+                  : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100",
+              ].join(" ")}
+            >
+              <span
+                className={[
+                  "inline-block h-2.5 w-2.5 rounded-full",
+                  pushEnabled ? "bg-green-500" : "bg-red-500",
+                ].join(" ")}
+              />
+              {pushEnabled ? "الإشعارات مفعّلة" : "فعّل الإشعارات"}
+            </button>
+          </div>
 
           {pushStatus ? (
             <p className="mt-2 text-sm text-slate-700">{pushStatus}</p>
           ) : null}
+
           <p className="mb-5 text-red-600 font-extrabold text-xl">
-            سيبدأ تلقائيًا عند الوصول للساعة العاشرة ليلا
+            {scheduledCopyLoading ? "..." : scheduledStartLine || "سيبدأ تلقائيًا عند الوصول للوقت المحدد"}
           </p>
-          <p className="text-slate-600 mb-5">
-            انتظروا كويز سهرة الاثنين  .. كويز مميز  .. أسئلة سيكون بعضها كما وعدناكم من كويز السهرة الماضية و أسئلة أخرى ستكون من حلقة البودكاست المسائي الذي يبثه
-            AYMEN PHOTOGRAPHE PROD
-            انتظرونا هناك جوائز هده المرة
-          </p>
+          {scheduledCopyLoading ? (
+            <p className="text-slate-500 mb-5">جاري تحميل تفاصيل الكويز...</p>
+          ) : scheduledBody.length ? (
+            <div className="text-slate-600 mb-5 space-y-2 text-right">
+              {scheduledBody.map((row, idx) => (
+                <p key={idx}>{row.content}</p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-600 mb-5">انتظرونا… سيتم نشر التفاصيل قريبًا.</p>
+          )}
 
           <button
             onClick={() => navigate(`/rules?quiz_id=${view.quizId}`)}

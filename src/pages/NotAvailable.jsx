@@ -97,7 +97,11 @@ export default function NotAvailable() {
   const [loading, setLoading] = useState(true);
   const [ctrl, setCtrl] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
-
+  // ===== Scheduled Copy (نصوص المجدول) =====
+  const [scheduledTitle, setScheduledTitle] = useState("");
+  const [scheduledStartLine, setScheduledStartLine] = useState("");
+  const [scheduledBody, setScheduledBody] = useState([]);
+  const [scheduledCopyLoading, setScheduledCopyLoading] = useState(false);
   // ✅ تحميل quiz_control
   useEffect(() => {
     let mounted = true;
@@ -201,6 +205,72 @@ export default function NotAvailable() {
 
     return { mode: "none" };
   }, [ctrl, serverNowMs]);
+  // ✅ تحميل نصوص scheduled من DB (title + start_line + body)
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadScheduledCopy() {
+      if (view.mode !== "scheduled") return;
+
+      setScheduledCopyLoading(true);
+
+      async function fetchByQuiz(quizIdNullable) {
+        let q = supabase
+          .from("scheduled_copy")
+          .select("slot, content, order_index")
+          .eq("stat", 1)
+          .eq("state", 1)
+          .order("order_index", { ascending: true });
+
+        if (quizIdNullable === null) q = q.is("quiz_id", null);
+        else q = q.eq("quiz_id", quizIdNullable);
+
+        const { data, error } = await q;
+        if (error) throw error;
+        return Array.isArray(data) ? data : [];
+      }
+
+      try {
+        // 1) نحاول نجيب النصوص الخاصة بالكويز
+        let rows = [];
+        if (view.quizId) rows = await fetchByQuiz(view.quizId);
+
+        // 2) إذا ماكانش، نجيب العامة
+        if (!rows.length) rows = await fetchByQuiz(null);
+
+        if (!mounted) return;
+
+        const titleRow = rows.find((r) => r.slot === "title");
+        const startRow = rows.find((r) => r.slot === "start_line");
+
+        setScheduledTitle(titleRow?.content ? String(titleRow.content) : "الكويز مجدول");
+        setScheduledStartLine(
+          startRow?.content ? String(startRow.content) : "سيبدأ تلقائيًا عند الوصول للوقت المحدد"
+        );
+
+        const bodyRows = rows
+          .filter((r) => r.slot === "body")
+          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+
+        setScheduledBody(bodyRows);
+      } catch (e) {
+        console.warn("NotAvailable scheduled copy failed:", e);
+        if (!mounted) return;
+
+        setScheduledTitle("الكويز مجدول");
+        setScheduledStartLine("سيبدأ تلقائيًا عند الوصول للوقت المحدد");
+        setScheduledBody([]);
+      } finally {
+        if (mounted) setScheduledCopyLoading(false);
+      }
+    }
+
+    loadScheduledCopy();
+
+    return () => {
+      mounted = false;
+    };
+  }, [view.mode, view.quizId]);
 
   // ✅ إذا مازال يحمل
   if (loading) {
@@ -218,17 +288,25 @@ export default function NotAvailable() {
     return (
       <Wrapper>
         <div className="w-full max-w-lg rounded-2xl bg-white/90 p-6 shadow text-center -mt-14">
-          <h1 className="text-2xl font-bold mb-2">الكويز مجدول</h1>
+          <h1 className="text-2xl font-bold mb-2">
+            {scheduledCopyLoading ? "..." : (scheduledTitle || "الكويز مجدول")}
+          </h1>
 
           <p className="mb-5 text-red-600 font-extrabold text-xl">
-            سيبدأ تلقائيًا عند الوصول للساعة العاشرة ليلا
+            {scheduledCopyLoading ? "..." : (scheduledStartLine || "سيبدأ تلقائيًا عند الوصول للوقت المحدد")}
           </p>
 
-          <p className="text-slate-600 mb-5">
-        انتظروا كويز سهرة الاثنين  .. كويز مميز  .. أسئلة سيكون بعضها كما وعدناكم من كويز السهرة الماضية و أسئلة أخرى ستكون من حلقة البودكاست المسائي الذي يبثه
-        AYMEN PHOTOGRAPHE PROD 
-        انتظرونا هناك جوائز هده المرة
-          </p>
+          {scheduledCopyLoading ? (
+            <p className="text-slate-500 mb-5">جاري تحميل تفاصيل الكويز...</p>
+          ) : scheduledBody.length ? (
+            <div className="text-slate-600 mb-5 space-y-2 text-right">
+              {scheduledBody.map((row, idx) => (
+                <p key={idx}>{row.content}</p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-600 mb-5">انتظرونا… سيتم نشر التفاصيل قريبًا.</p>
+          )}
 
           <button
             onClick={() => navigate(`/rules?quiz_id=${view.quizId}`)}
@@ -271,11 +349,11 @@ export default function NotAvailable() {
           >
             صفحتنا على الفيسبوك لمزيد من التفاصيل
           </a>
-         <SiteFooter />
+          <SiteFooter />
         </div>
-        
+
       </Wrapper>
-       
+
     );
   }
 

@@ -13,7 +13,7 @@ const navItems = [
   { to: "/admin/live-stats", label: "Live Stats" },
   { to: "/admin/partners", label: "Partners" },
   { to: "/admin/rules", label: "Rules" },
-  { to: "/admin/AdminPush", label: "AdminPush" },
+  { to: "/admin/scheduled-copy", label: "Scheduled Copy" },
 ];
 
 export default function AdminLayout({ title, subtitle, children }) {
